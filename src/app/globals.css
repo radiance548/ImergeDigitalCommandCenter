@@ -49,6 +49,30 @@ html, body {
   color: var(--text);
 }
 
+/* Themed scrollbars — the browser default (an opaque white/light track)
+   reads as a sharp, jarring rectangle against the dark surfaces, most
+   noticeably in the sidebar nav. Applied document-wide for consistency
+   with every other scrollable panel (tables, modals, etc.), not just
+   the sidebar. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 999px;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--muted);
+}
+
 button, input, select, textarea {
   font-family: inherit;
 }
@@ -73,8 +97,10 @@ button, input, select, textarea {
   z-index: 50;
 }
 
-.brand { display: flex; align-items: center; }
-.brand img { max-width: 100%; height: auto; }
+.brand { display: flex; align-items: center; gap: 12px; font-weight: 800; font-size: 18px; }
+
+.brand-icon { display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.brand-icon img { display: block; width: 100%; height: auto; }
 
 .nav { display: flex; flex-direction: column; gap: 8px; overflow: auto; }
 
@@ -115,6 +141,8 @@ button, input, select, textarea {
   width: min(520px, 100%); background: var(--surface); border: 1px solid var(--border);
   border-radius: 26px; box-shadow: var(--shadow); padding: 28px;
 }
+
+.login-logo img { display: block; width: 58px; height: auto; }
 
 .theme-toggle {
   border: 1px solid var(--border); background: var(--surface-2); color: var(--text);

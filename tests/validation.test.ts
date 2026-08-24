@@ -65,6 +65,19 @@ describe("validation: createCampaignSchema", () => {
     assert.equal(result.success, false);
   });
 
+  test("accepts an empty fromEmail (not chosen yet at creation time)", () => {
+    // Regression: the "New campaign" button creates a draft before the
+    // user has picked a sending address (see campaigns/page.tsx) — the
+    // schema must not require a real email up front. ScheduleStep's
+    // canSend check is what actually blocks sending until it's set.
+    const result = createCampaignSchema.safeParse({
+      subject: "Hello",
+      bodyHtml: "<p>Hi</p>",
+      fromEmail: "",
+    });
+    assert.ok(result.success);
+  });
+
   test("rejects a subject over 200 characters", () => {
     const result = createCampaignSchema.safeParse({
       subject: "x".repeat(201),

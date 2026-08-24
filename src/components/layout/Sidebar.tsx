@@ -19,7 +19,14 @@ export default function Sidebar() {
   return (
     <aside className="sidebar">
       <div className="brand">
-        <Image src="/logo.png" alt="Imerge Digital" width={118} height={48} priority />
+        <div className="brand-icon">
+          <Image src="/logo-icon.png" alt="" width={42} height={44} priority />
+        </div>
+        <div>
+          Imerge
+          <br />
+          Command Center
+        </div>
       </div>
 
       <nav className="nav">

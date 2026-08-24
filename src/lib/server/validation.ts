@@ -1,11 +1,17 @@
 import { z } from "zod";
 
+// A campaign can be created/saved before its sending address is known —
+// ScheduleStep already blocks actually sending until fromEmail is a real
+// value (see ScheduleStep.tsx's canSend check) — so validation here only
+// needs to reject garbage, not require a value to be present yet.
+const blankOrEmail = z.union([z.literal(""), z.string().email()]);
+
 export const campaignContentSchema = z.object({
   subject: z.string().min(1, "Subject is required").max(200),
   preheader: z.string().max(200).optional(),
   bodyHtml: z.string().min(1, "Email body is required"),
   fromName: z.string().min(1).max(100).default("Imerge"),
-  fromEmail: z.string().email(),
+  fromEmail: blankOrEmail,
 });
 
 export const createCampaignSchema = campaignContentSchema.extend({

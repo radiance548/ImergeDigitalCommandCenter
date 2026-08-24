@@ -26,7 +26,10 @@ export default function LoginScreen() {
   return (
     <section className="login-screen">
       <div className="login-card">
-        <Image src="/logo.png" alt="Imerge Digital" width={177} height={72} priority style={{ marginBottom: 10 }} />
+        <div className="login-logo">
+          <Image src="/logo-icon.png" alt="" width={58} height={61} priority />
+        </div>
+        <h1 style={{ margin: "14px 0 8px" }}>Imerge Command Center</h1>
         <p style={{ color: "var(--muted)", fontWeight: 700 }}>Login with your authorized staff account.</p>
         {error && <p style={{ color: "var(--danger)", fontWeight: 700 }}>{error}</p>}
         <div className="field" style={{ marginTop: 18 }}>
