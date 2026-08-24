@@ -49,12 +49,14 @@ export interface CampaignAnalytics {
   delivered: number;
   opened: number;
   clicked: number;
+  engaged: number;
   bounced: number;
   unsubscribed: number;
   complained: number;
   deliveryRate: number;
   openRate: number;
   clickRate: number;
+  engagedRate: number;
   bounceRate: number;
 }
 

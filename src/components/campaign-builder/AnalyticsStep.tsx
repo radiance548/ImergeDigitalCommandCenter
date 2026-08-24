@@ -71,6 +71,11 @@ export default function AnalyticsStep({ campaign }: { campaign: Campaign }) {
               <span>{pct(analytics.clickRate)}</span>
             </div>
             <div className="kpi-card">
+              <small>Engaged</small>
+              <h2>{analytics.engaged}</h2>
+              <span>{pct(analytics.engagedRate)}</span>
+            </div>
+            <div className="kpi-card">
               <small>Bounced</small>
               <h2>{analytics.bounced}</h2>
               <span>{pct(analytics.bounceRate)}</span>
@@ -87,6 +92,11 @@ export default function AnalyticsStep({ campaign }: { campaign: Campaign }) {
           <p style={{ color: "var(--muted)", fontSize: 12 }}>
             Delivered/opened/clicked/bounced figures depend on your mail provider sending delivery webhooks to{" "}
             <code>/api/webhooks/mail/{campaign.provider}</code>. The console provider only ever shows &quot;sent&quot;.
+          </p>
+          <p style={{ color: "var(--muted)", fontSize: 12 }}>
+            &quot;Opened&quot; can run higher than real readership — some mail apps preview messages
+            automatically before a recipient ever looks at them. &quot;Engaged&quot; only counts recipients
+            who opened and then clicked a link, so it&apos;s the more reliable sign of genuine interest.
           </p>
         </>
       )}

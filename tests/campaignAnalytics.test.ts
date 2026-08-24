@@ -11,6 +11,8 @@ describe("campaignAnalytics: computeCampaignAnalytics", () => {
     assert.equal(result.openRate, 0);
     assert.equal(result.clickRate, 0);
     assert.equal(result.bounceRate, 0);
+    assert.equal(result.engaged, 0);
+    assert.equal(result.engagedRate, 0);
   });
 
   test("totalRecipients sums across every recipient status, not just 'sent'", () => {
@@ -91,6 +93,29 @@ describe("campaignAnalytics: computeCampaignAnalytics", () => {
     );
     // If openRate were computed against `sent` this would be 0.5, not 1.0.
     assert.equal(result.openRate, 1);
+  });
+
+  test("engaged/engagedRate come from the recipient-level opened-and-clicked count, not the raw event totals", () => {
+    // 100 delivered, 60 raw "opened" events, 20 raw "clicked" events, but only
+    // 15 recipients account for both — that 15 is what campaignService computes
+    // via a per-recipient join and passes in as the third argument.
+    const result = computeCampaignAnalytics(
+      [{ status: "sent", _count: 100 }],
+      [
+        { type: "delivered", _count: 100 },
+        { type: "opened", _count: 60 },
+        { type: "clicked", _count: 20 },
+      ],
+      15
+    );
+    assert.equal(result.engaged, 15);
+    assert.equal(result.engagedRate, 0.15);
+  });
+
+  test("engagedRecipients defaults to 0 when omitted", () => {
+    const result = computeCampaignAnalytics([{ status: "sent", _count: 10 }], [{ type: "delivered", _count: 10 }]);
+    assert.equal(result.engaged, 0);
+    assert.equal(result.engagedRate, 0);
   });
 
   test("unsubscribed and complained pass through directly with no rate computed for them", () => {

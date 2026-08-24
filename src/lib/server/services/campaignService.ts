@@ -158,12 +158,25 @@ export const campaignService = {
 
   // -------------------- Step 5: analytics --------------------
   async getAnalytics(campaignId: string, db: Db = prisma) {
-    const [recipientCounts, eventCounts] = await Promise.all([
+    const [recipientCounts, eventCounts, openedRecipients, clickedRecipients] = await Promise.all([
       db.campaignRecipient.groupBy({ by: ["status"], where: { campaignId }, _count: true }),
       db.campaignEvent.groupBy({ by: ["type"], where: { campaignId }, _count: true }),
+      db.campaignEvent.findMany({
+        where: { campaignId, type: "opened", recipientId: { not: null } },
+        select: { recipientId: true },
+        distinct: ["recipientId"],
+      }),
+      db.campaignEvent.findMany({
+        where: { campaignId, type: "clicked", recipientId: { not: null } },
+        select: { recipientId: true },
+        distinct: ["recipientId"],
+      }),
     ]);
 
-    return computeCampaignAnalytics(recipientCounts, eventCounts);
+    const clickedIds = new Set(clickedRecipients.map((r) => r.recipientId));
+    const engagedRecipients = openedRecipients.filter((r) => clickedIds.has(r.recipientId)).length;
+
+    return computeCampaignAnalytics(recipientCounts, eventCounts, engagedRecipients);
   },
 
   // -------------------- Webhook ingestion --------------------
