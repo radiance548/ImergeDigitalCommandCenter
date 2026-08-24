@@ -1,43 +1,50 @@
-@import "@fortawesome/fontawesome-free/css/all.min.css";
-
 /* ================================
-   POWER BI STYLE DESIGN SYSTEM
-   (ported from the original static build)
+   DESIGN SYSTEM
+   Dark is the default surface (see useAppStore's initial theme) — a
+   near-black premium palette in the spirit of modern SaaS tools, with a
+   single violet accent used consistently across both themes rather than
+   swapping hues between them. Light mode is the secondary/opt-in theme,
+   toggled via [data-theme="light"].
 ================================= */
 :root {
-  --bg: #f5f7fb;
-  --surface: #ffffff;
-  --surface-2: #eef2f8;
-  --text: #182230;
-  --muted: #667085;
-  --border: #e4e7ec;
-  --primary: #2563eb;
-  --primary-soft: #dbeafe;
-  --success: #16a34a;
-  --danger: #dc2626;
-  --warning: #f59e0b;
-  --shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
-  --radius: 18px;
+  --bg: #0a0a0d;
+  --surface: #131317;
+  --surface-2: #1c1c22;
+  --text: #f5f5f7;
+  --muted: #93939f;
+  --border: #26262e;
+  --primary: #7c5cff;
+  --primary-soft: #241f3d;
+  --accent-deep: #4a2fd4;
+  --success: #3ddc97;
+  --danger: #ff6b6b;
+  --warning: #ffc857;
+  --shadow: 0 20px 45px rgba(0, 0, 0, 0.55);
+  --radius: 14px;
   --sidebar: 280px;
 }
 
-[data-theme="dark"] {
-  --bg: #0f172a;
-  --surface: #111c33;
-  --surface-2: #1e293b;
-  --text: #f8fafc;
-  --muted: #94a3b8;
-  --border: #253248;
-  --primary: #60a5fa;
-  --primary-soft: #1e3a8a;
-  --shadow: 0 12px 30px rgba(0, 0, 0, 0.35);
+[data-theme="light"] {
+  --bg: #f7f7fb;
+  --surface: #ffffff;
+  --surface-2: #f1eff9;
+  --text: #17171f;
+  --muted: #6b6b7b;
+  --border: #e6e4ee;
+  --primary: #6d4aff;
+  --primary-soft: #ece7ff;
+  --accent-deep: #a996ff;
+  --success: #16a34a;
+  --danger: #dc2626;
+  --warning: #d97706;
+  --shadow: 0 12px 30px rgba(23, 17, 51, 0.08);
 }
 
 * { box-sizing: border-box; }
 
 html, body {
   margin: 0;
-  font-family: Inter, "Segoe UI", Arial, sans-serif;
+  font-family: var(--font-sans), "Segoe UI", Arial, sans-serif;
   background: var(--bg);
   color: var(--text);
 }
@@ -71,7 +78,7 @@ button, input, select, textarea {
 .brand-icon {
   width: 42px; height: 42px; border-radius: 14px;
   display: grid; place-items: center;
-  background: linear-gradient(135deg, var(--primary), #7c3aed);
+  background: linear-gradient(135deg, var(--primary), var(--accent-deep));
   color: white; box-shadow: var(--shadow);
 }
 
@@ -205,13 +212,13 @@ th { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spa
 .table-card, .panel-card { padding: 16px; overflow: auto; }
 
 .badge { padding: 5px 9px; border-radius: 999px; font-size: 12px; font-weight: 800; background: var(--surface-2); }
-.badge.good { color: var(--success); background: rgba(22, 163, 74, 0.12); }
-.badge.bad { color: var(--danger); background: rgba(220, 38, 38, 0.12); }
-.badge.warn { color: var(--warning); background: rgba(245, 158, 11, 0.15); }
+.badge.good { color: var(--success); background: color-mix(in srgb, var(--success) 15%, transparent); }
+.badge.bad { color: var(--danger); background: color-mix(in srgb, var(--danger) 15%, transparent); }
+.badge.warn { color: var(--warning); background: color-mix(in srgb, var(--warning) 18%, transparent); }
 
 .form-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; align-items: end; }
 
-.modal { position: fixed; inset: 0; display: none; place-items: center; background: rgba(15, 23, 42, 0.55); z-index: 200; padding: 20px; }
+.modal { position: fixed; inset: 0; display: none; place-items: center; background: rgba(0, 0, 0, 0.6); z-index: 200; padding: 20px; }
 .modal.active { display: grid; }
 .modal-card {
   background: var(--surface); border-radius: 22px; padding: 20px; box-shadow: var(--shadow);
@@ -268,10 +275,10 @@ th { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spa
 
 .status-pill { padding: 5px 10px; border-radius: 999px; font-size: 12px; font-weight: 800; }
 .status-pill.draft { background: var(--surface-2); color: var(--muted); }
-.status-pill.scheduled { background: rgba(245, 158, 11, 0.15); color: var(--warning); }
+.status-pill.scheduled { background: color-mix(in srgb, var(--warning) 18%, transparent); color: var(--warning); }
 .status-pill.sending { background: var(--primary-soft); color: var(--primary); }
-.status-pill.sent { background: rgba(22, 163, 74, 0.12); color: var(--success); }
-.status-pill.failed, .status-pill.canceled { background: rgba(220, 38, 38, 0.12); color: var(--danger); }
+.status-pill.sent { background: color-mix(in srgb, var(--success) 15%, transparent); color: var(--success); }
+.status-pill.failed, .status-pill.canceled { background: color-mix(in srgb, var(--danger) 15%, transparent); color: var(--danger); }
 
 .analytics-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 14px; }
 

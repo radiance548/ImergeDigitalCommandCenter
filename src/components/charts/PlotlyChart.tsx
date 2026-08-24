@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import type { ComponentType } from "react";
+import { useEffect, useRef, useState, type ComponentType } from "react";
 
 export interface PlotlyPoint {
   x?: unknown;
@@ -30,7 +30,7 @@ const Plot = dynamic(
 
 function defaultLayout(): Record<string, unknown> {
   const textColor =
-    typeof window !== "undefined" ? getComputedStyle(document.documentElement).getPropertyValue("--text") : "#182230";
+    typeof window !== "undefined" ? getComputedStyle(document.documentElement).getPropertyValue("--text") : "#f5f5f7";
   return {
     paper_bgcolor: "rgba(0,0,0,0)",
     plot_bgcolor: "rgba(0,0,0,0)",
@@ -41,20 +41,52 @@ function defaultLayout(): Record<string, unknown> {
 }
 
 export default function PlotlyChart({ id, data, layout, onGraphDiv, onPointClick }: PlotlyChartProps) {
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  // Dashboards can stack 6-7 of these; each is a genuinely heavy Plotly
+  // instance to initialize (SVG construction + layout calc), so mounting
+  // them all immediately on navigation is a real, felt delay even though
+  // the plotly.js chunk itself is cached after first load. Deferring
+  // mount until a chart actually scrolls near the viewport spreads that
+  // cost out instead of paying all of it up front.
+  const [isNearViewport, setIsNearViewport] = useState(false);
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el || typeof IntersectionObserver === "undefined") {
+      setIsNearViewport(true);
+      return;
+    }
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setIsNearViewport(true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin: "200px" }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
   return (
-    <Plot
-      divId={id}
-      data={data}
-      layout={{ ...defaultLayout(), ...layout }}
-      config={{ responsive: true, displaylogo: false }}
-      style={{ width: "100%", height: "100%", minHeight: 300 }}
-      useResizeHandler
-      onInitialized={(_figure: unknown, graphDiv: HTMLElement) => onGraphDiv?.(graphDiv)}
-      onUpdate={(_figure: unknown, graphDiv: HTMLElement) => onGraphDiv?.(graphDiv)}
-      onClick={(e: any) => {
-        const p = e?.points?.[0];
-        if (p) onPointClick?.(p);
-      }}
-    />
+    <div ref={containerRef} style={{ width: "100%", height: "100%", minHeight: 300 }}>
+      {isNearViewport && (
+        <Plot
+          divId={id}
+          data={data}
+          layout={{ ...defaultLayout(), ...layout }}
+          config={{ responsive: true, displaylogo: false }}
+          style={{ width: "100%", height: "100%", minHeight: 300 }}
+          useResizeHandler
+          onInitialized={(_figure: unknown, graphDiv: HTMLElement) => onGraphDiv?.(graphDiv)}
+          onUpdate={(_figure: unknown, graphDiv: HTMLElement) => onGraphDiv?.(graphDiv)}
+          onClick={(e: any) => {
+            const p = e?.points?.[0];
+            if (p) onPointClick?.(p);
+          }}
+        />
+      )}
+    </div>
   );
 }

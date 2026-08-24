@@ -12,7 +12,10 @@ const MONTHS = [
   "July", "August", "September", "October", "November", "December",
 ];
 const PERMISSION_LEVELS: Permission[] = ["none", "view", "edit", "full"];
-const ROUTES = NAV_ITEMS.map((n) => n.id);
+// dedupe: Campaign Builder shares the "marketing" id with Marketing
+// Activity (see constants.ts), and this table has one column per
+// permission dimension, not per nav link.
+const ROUTES = Array.from(new Set(NAV_ITEMS.map((n) => n.id)));
 
 export default function SettingsView() {
   const data = useAppStore((s) => s.data);

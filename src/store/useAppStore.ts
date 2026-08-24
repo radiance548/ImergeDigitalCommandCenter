@@ -75,7 +75,7 @@ async function persist(data: AppData) {
 export const useAppStore = create<AppState>((set, get) => ({
   data: null,
   currentUserId: null,
-  theme: "light",
+  theme: "dark",
   isLoading: true,
 
   init: async () => {
@@ -101,8 +101,6 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (!user) return { ok: false, message: "No account found. Please check email spelling." };
     if (user.isActive === false) return { ok: false, message: "This account is inactive. Please contact admin." };
     if (String(user.password) !== String(password)) return { ok: false, message: "Incorrect password." };
-    await repository.setSessionUserId(user.id);
-    set({ currentUserId: user.id });
 
     // Best-effort: also establish a real backend session (httpOnly cookie)
     // for the Campaign Builder's API routes. This is a separate auth system
@@ -110,6 +108,14 @@ export const useAppStore = create<AppState>((set, get) => ({
     // layers"), so if the backend isn't configured yet (no DATABASE_URL) or
     // this account hasn't been seeded server-side, the dashboards still work
     // fine; only Campaign Builder API calls would be unavailable until it is.
+    //
+    // Must happen BEFORE currentUserId is set below: setting currentUserId
+    // flips AppShell straight to the authenticated view, remounting whatever
+    // page the user was last on. A page like Campaign Builder's list
+    // (marketing/campaigns/page.tsx) fetches from a cookie-authenticated API
+    // route in a mount-only effect — if that fetch fires before this cookie
+    // exists, it 401s once and has no way to know to retry, leaving a stale
+    // "not signed in" error on screen until the user navigates away and back.
     try {
       await fetch("/api/auth/login", {
         method: "POST",
@@ -119,6 +125,9 @@ export const useAppStore = create<AppState>((set, get) => ({
     } catch {
       // Ignore — backend may not be configured. See note above.
     }
+
+    await repository.setSessionUserId(user.id);
+    set({ currentUserId: user.id });
 
     return { ok: true };
   },

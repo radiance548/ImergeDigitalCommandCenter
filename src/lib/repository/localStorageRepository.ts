@@ -83,8 +83,8 @@ export class LocalStorageRepository implements DataRepository {
   }
 
   async getTheme(): Promise<"light" | "dark"> {
-    if (!isBrowser()) return "light";
-    return (window.localStorage.getItem(THEME_KEY) as "light" | "dark") || "light";
+    if (!isBrowser()) return "dark";
+    return (window.localStorage.getItem(THEME_KEY) as "light" | "dark") || "dark";
   }
 
   async setTheme(theme: "light" | "dark"): Promise<void> {

@@ -154,7 +154,11 @@ export type CollectionKey =
   | "users";
 
 export interface NavItem {
+  /** Which permission dimension gates this item (see canView/canEdit). */
   id: DashboardId;
+  /** Where it links to — not always `/${id}`, e.g. Campaign Builder shares
+   *  the "marketing" permission but links to a different sub-route. */
+  href: string;
   icon: string;
   title: string;
   question: string;

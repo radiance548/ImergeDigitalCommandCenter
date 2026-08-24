@@ -37,19 +37,13 @@ export default function CampaignsListPage() {
 
   return (
     <>
-      <div className="topbar" style={{ marginBottom: 18 }}>
-        <div className="page-title">
-          <h1>Campaign Builder</h1>
-          <p>Create, schedule, and track email campaigns end-to-end.</p>
+      {canEdit && (
+        <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 12 }}>
+          <button className="btn primary" disabled={creating} onClick={createDraft}>
+            <i className="fa-solid fa-plus" /> New campaign
+          </button>
         </div>
-        <div className="actions">
-          {canEdit && (
-            <button className="btn primary" disabled={creating} onClick={createDraft}>
-              <i className="fa-solid fa-plus" /> New campaign
-            </button>
-          )}
-        </div>
-      </div>
+      )}
 
       {error && (
         <div className="alert" style={{ marginBottom: 16 }}>

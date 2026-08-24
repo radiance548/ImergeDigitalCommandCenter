@@ -167,17 +167,17 @@ describe("LocalStorageRepository: session + theme", () => {
     assert.equal(await repo.getSessionUserId(), null);
   });
 
-  test("getTheme defaults to 'light' when unset", async () => {
+  test("getTheme defaults to 'dark' when unset", async () => {
     installFakeWindow();
     const repo = new LocalStorageRepository();
-    assert.equal(await repo.getTheme(), "light");
+    assert.equal(await repo.getTheme(), "dark");
   });
 
   test("setTheme/getTheme round-trip", async () => {
     installFakeWindow();
     const repo = new LocalStorageRepository();
-    await repo.setTheme("dark");
-    assert.equal(await repo.getTheme(), "dark");
+    await repo.setTheme("light");
+    assert.equal(await repo.getTheme(), "light");
   });
 });
 

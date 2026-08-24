@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { NAV_ITEMS } from "@/lib/constants";
+import { NAV_ITEMS, getActiveNavHref } from "@/lib/constants";
 import { useAppStore } from "@/store/useAppStore";
 import { useUIStore } from "@/store/useUIStore";
 import { downloadRowsAsCSV, exportDashboardPDF } from "@/lib/exportUtils";
@@ -13,8 +13,12 @@ function permissionLabel(value: Permission): string {
 
 export default function Topbar() {
   const pathname = usePathname();
-  const route = (pathname?.split("/")[1] || "income") as DashboardId;
-  const item = NAV_ITEMS.find((n) => n.id === route) || NAV_ITEMS[0];
+  // Marketing Activity and Campaign Builder share the "marketing" id/route
+  // segment but are different pages now — match by href, not just the id,
+  // so this shows the right title on each (see constants.ts).
+  const activeHref = getActiveNavHref(pathname);
+  const item = NAV_ITEMS.find((n) => n.href === activeHref) || NAV_ITEMS[0];
+  const route = item.id as DashboardId;
 
   const currentUser = useAppStore((s) => s.currentUser());
   const permission = useAppStore((s) => s.permission(route));

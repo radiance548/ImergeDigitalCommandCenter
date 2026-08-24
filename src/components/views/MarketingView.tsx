@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useMemo } from "react";
 import FilterBar from "@/components/ui/FilterBar";
 import KpiGrid from "@/components/ui/KpiGrid";
@@ -55,11 +54,6 @@ export default function MarketingView() {
 
   return (
     <>
-      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 12 }}>
-        <Link href="/marketing/campaigns" className="btn primary">
-          <i className="fa-solid fa-paper-plane" /> Campaign Builder
-        </Link>
-      </div>
       <FilterBar
         range={range}
         onRangeChange={setRange}

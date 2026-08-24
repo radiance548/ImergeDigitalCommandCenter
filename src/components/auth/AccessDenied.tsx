@@ -11,7 +11,7 @@ export default function AccessDenied() {
 
   const goToAllowed = () => {
     const first = NAV_ITEMS.find((n) => canView(n.id));
-    if (first) router.push(`/${first.id}`);
+    if (first) router.push(first.href);
   };
 
   return (
