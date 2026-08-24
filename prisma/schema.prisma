@@ -1,0 +1,382 @@
+// ============================================================
+// Imerge Command Center — backend data model
+// Target: PostgreSQL (designed for Neon, works with any Postgres)
+//
+// This schema covers two things:
+//   1. The existing dashboard data (users, transactions, campaigns
+//      analytics, clients, deals, customers, settings) — mirrors
+//      src/lib/types.ts so a PrismaRepository can implement the
+//      same DataRepository interface the frontend already uses.
+//   2. The Campaign Builder subsystem (EmailTemplate, Audience,
+//      Contact, EmailCampaign, CampaignRecipient, CampaignEvent,
+//      EmailCampaign) — the part this change set is primarily adding.
+//      Campaign scheduling/dispatch is delegated to Resend's own
+//      Broadcast API rather than a locally-run queue — see
+//      src/lib/server/mail/broadcastProvider.ts.
+// ============================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  // Neon: use a pooled connection for the app and an unpooled one for migrations.
+  directUrl = env("DIRECT_URL")
+}
+
+// ------------------------------------------------------------------
+// Staff / auth
+// ------------------------------------------------------------------
+
+enum Permission {
+  none
+  view
+  edit
+  full
+}
+
+enum Dashboard {
+  income
+  marketing
+  health
+  clients
+  pipeline
+  ltv
+  settings
+}
+
+/// A staff member's app-specific profile: role/department/dashboard
+/// permissions. Credentials and session management live entirely in
+/// Supabase Auth (the `auth.users` table, managed outside this schema) —
+/// `id` here MUST equal the corresponding `auth.users.id`. Provisioning a
+/// new staff account means creating both rows with the same id (see
+/// prisma/seed.ts and the Auth section of README.md).
+model StaffUser {
+  id          String       @id @db.Uuid
+  name        String
+  email       String       @unique
+  role        String
+  department  String
+  isActive    Boolean      @default(true)
+  permissionMap Json       @default("{}") // { [Dashboard]: Permission }
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  campaigns   EmailCampaign[]
+  auditLogs   AuditLog[]
+
+  @@map("staff_users")
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String?    @db.Uuid
+  user      StaffUser? @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action    String
+  entity    String
+  entityId  String?
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  @@index([entity, entityId])
+  @@map("audit_logs")
+}
+
+// ------------------------------------------------------------------
+// Core operational data (Income, Clients, Pipeline, LTV dashboards)
+// ------------------------------------------------------------------
+
+model Settings {
+  id                Int      @id @default(1)
+  currency          String   @default("$")
+  fiscalStartMonth  String   @default("January")
+  hourlyCost        Float    @default(45)
+  targetLtvCac      Float    @default(3)
+  monthlyBudget     Float    @default(25000)
+  categoryBudgets   Json     @default("{}")
+  updatedAt         DateTime @updatedAt
+
+  @@map("settings")
+}
+
+model Transaction {
+  id          String   @id @default(cuid())
+  date        DateTime
+  type        String // "income" | "expense"
+  category    String
+  amount      Float
+  description String
+  createdAt   DateTime @default(now())
+
+  @@index([date])
+  @@index([type])
+  @@map("transactions")
+}
+
+model MarketingCampaignMetric {
+  id            String   @id @default(cuid())
+  name          String
+  channel       String
+  campaignType  String
+  startDate     DateTime
+  endDate       DateTime
+  spend         Float
+  impressions   Int
+  clicks        Int
+  conversions   Int
+  revenue       Float
+  createdAt     DateTime @default(now())
+
+  @@map("marketing_campaign_metrics")
+}
+
+model DailyMetric {
+  id           String   @id @default(cuid())
+  date         DateTime
+  channel      String
+  spend        Float
+  clicks       Int
+  leads        Int
+  hour         Int
+  costPerLead  Float
+
+  @@index([date, channel])
+  @@map("daily_metrics")
+}
+
+model ClientRecord {
+  id                String   @id @default(cuid())
+  name              String
+  tier              String
+  serviceLine       String
+  monthlyRetainer   Float
+  contractHours     Float
+  actualHours       Float
+  scopeCreepHours   Float
+  billableExpenses  Float
+  clientRevenue     Float
+  createdAt         DateTime @default(now())
+
+  timeEntries TimeEntry[]
+
+  @@map("client_records")
+}
+
+model TimeEntry {
+  id          String       @id @default(cuid())
+  clientId    String
+  client      ClientRecord @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  date        DateTime
+  hours       Float
+  description String
+  billable    Boolean      @default(true)
+  approved    Boolean      @default(false)
+
+  @@index([clientId])
+  @@map("time_entries")
+}
+
+model Deal {
+  id                 String   @id @default(cuid())
+  clientName         String
+  value              Float
+  stage              String // Proposal | Negotiation | Closed Won | Closed Lost
+  industry            String
+  expectedCloseDate  DateTime
+  probability        Float
+  requiredRole       String
+  hoursNeeded        Float
+  createdAt          DateTime @default(now())
+
+  @@map("deals")
+}
+
+model TeamCapacity {
+  role                     String @id
+  availableHoursThisMonth  Float
+  totalCapacity            Float
+
+  @@map("team_capacity")
+}
+
+model Customer {
+  id                  String    @id @default(cuid())
+  name                String
+  acquisitionDate     DateTime
+  acquisitionChannel  String
+  cac                 Float
+  firstYearRevenue    Float
+  lifetimeRevenue     Float
+  churnDate           DateTime?
+
+  @@map("customers")
+}
+
+// ------------------------------------------------------------------
+// CAMPAIGN BUILDER
+// Covers: 1) content  2) template  3) audience  4) schedule/send
+//         5) analytics
+// ------------------------------------------------------------------
+
+enum CampaignStatus {
+  draft
+  scheduled
+  sending
+  sent
+  failed
+  canceled
+}
+
+model EmailTemplate {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  /// Raw HTML with {{mustache}} style merge tags, e.g. {{first_name}}
+  html        String
+  thumbnailUrl String?
+  isSystem    Boolean  @default(false) // seeded/starter templates vs user-created
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  campaigns   EmailCampaign[]
+
+  @@map("email_templates")
+}
+
+model Audience {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  /// Resend Audience id, once synced — see src/lib/server/mail/broadcastProvider.ts
+  externalId  String?  @unique
+  createdAt   DateTime @default(now())
+
+  contacts    AudienceContact[]
+  campaigns   EmailCampaign[]
+
+  @@map("audiences")
+}
+
+enum ContactStatus {
+  subscribed
+  unsubscribed
+  bounced
+  complained
+}
+
+model AudienceContact {
+  id          String        @id @default(cuid())
+  audienceId  String
+  audience    Audience      @relation(fields: [audienceId], references: [id], onDelete: Cascade)
+  email       String
+  firstName   String?
+  lastName    String?
+  status      ContactStatus @default(subscribed)
+  attributes  Json          @default("{}") // arbitrary merge-tag data
+  createdAt   DateTime      @default(now())
+
+  recipients  CampaignRecipient[]
+
+  @@unique([audienceId, email])
+  @@index([audienceId])
+  @@map("audience_contacts")
+}
+
+model EmailCampaign {
+  id            String         @id @default(cuid())
+
+  // Step 1: content
+  subject       String
+  preheader     String?
+  bodyHtml      String
+  fromName      String         @default("Imerge")
+  fromEmail     String
+
+  // Step 2: template
+  templateId    String?
+  template      EmailTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+
+  // Step 3: audience
+  audienceId    String?
+  audience      Audience?      @relation(fields: [audienceId], references: [id], onDelete: SetNull)
+
+  // Step 4: schedule / send
+  status        CampaignStatus @default(draft)
+  scheduledAt   DateTime?
+  sentAt        DateTime?
+  /// Which MailProvider implementation this campaign is associated with
+  /// (kept for the send-a-single-test-email use case / future providers).
+  provider      String         @default("resend")
+  /// Resend Broadcast id, once created — see
+  /// src/lib/server/mail/broadcastProvider.ts. Resend owns the actual
+  /// send queue/scheduling/throttling once this is set and sent.
+  externalBroadcastId String?  @unique
+
+  createdById   String?        @db.Uuid
+  createdBy     StaffUser?     @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  recipients    CampaignRecipient[]
+  events        CampaignEvent[]
+
+  @@index([status, scheduledAt])
+  @@map("email_campaigns")
+}
+
+enum RecipientStatus {
+  pending
+  sent
+  delivered
+  bounced
+  failed
+}
+
+model CampaignRecipient {
+  id                String            @id @default(cuid())
+  campaignId        String
+  campaign          EmailCampaign     @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  contactId         String?
+  contact           AudienceContact?  @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  email             String
+  status            RecipientStatus   @default(pending)
+  /// The message id returned by the mail provider, used to correlate webhook events.
+  providerMessageId String?
+  sentAt            DateTime?
+  error             String?
+
+  events            CampaignEvent[]
+
+  @@unique([campaignId, email])
+  @@index([campaignId])
+  @@index([providerMessageId])
+  @@map("campaign_recipients")
+}
+
+enum CampaignEventType {
+  sent
+  delivered
+  opened
+  clicked
+  bounced
+  complained
+  unsubscribed
+}
+
+/// Step 5: analytics — one row per tracked event, aggregated on read.
+model CampaignEvent {
+  id           String            @id @default(cuid())
+  campaignId   String
+  campaign     EmailCampaign     @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  recipientId  String?
+  recipient    CampaignRecipient? @relation(fields: [recipientId], references: [id], onDelete: SetNull)
+  type         CampaignEventType
+  url          String? // for "clicked" events
+  metadata     Json?
+  occurredAt   DateTime          @default(now())
+
+  @@index([campaignId, type])
+  @@map("campaign_events")
+}
