@@ -18,7 +18,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const theme = useAppStore((s) => s.theme);
   const init = useAppStore((s) => s.init);
   const canView = useAppStore((s) => s.canView);
-  const pathname = usePathname();
+  const pathname = usePathname(); 
   const route = (pathname?.split("/")[1] || "income") as DashboardId;
 
   useEffect(() => {
