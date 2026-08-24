@@ -73,14 +73,8 @@ button, input, select, textarea {
   z-index: 50;
 }
 
-.brand { display: flex; align-items: center; gap: 12px; font-weight: 800; font-size: 18px; }
-
-.brand-icon {
-  width: 42px; height: 42px; border-radius: 14px;
-  display: grid; place-items: center;
-  background: linear-gradient(135deg, var(--primary), var(--accent-deep));
-  color: white; box-shadow: var(--shadow);
-}
+.brand { display: flex; align-items: center; }
+.brand img { max-width: 100%; height: auto; }
 
 .nav { display: flex; flex-direction: column; gap: 8px; overflow: auto; }
 
@@ -120,11 +114,6 @@ button, input, select, textarea {
 .login-card {
   width: min(520px, 100%); background: var(--surface); border: 1px solid var(--border);
   border-radius: 26px; box-shadow: var(--shadow); padding: 28px;
-}
-
-.login-logo {
-  width: 58px; height: 58px; border-radius: 18px; display: grid; place-items: center;
-  color: white; background: linear-gradient(135deg, var(--primary), #7c3aed); font-size: 24px;
 }
 
 .theme-toggle {

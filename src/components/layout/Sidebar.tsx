@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { NAV_ITEMS, getActiveNavHref } from "@/lib/constants";
@@ -18,14 +19,7 @@ export default function Sidebar() {
   return (
     <aside className="sidebar">
       <div className="brand">
-        <div className="brand-icon">
-          <i className="fa-solid fa-chart-pie" />
-        </div>
-        <div>
-          Imerge
-          <br />
-          Command Center
-        </div>
+        <Image src="/logo.png" alt="Imerge Digital" width={118} height={48} priority />
       </div>
 
       <nav className="nav">

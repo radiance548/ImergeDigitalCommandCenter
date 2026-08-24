@@ -15,7 +15,7 @@ export default function ScheduleStep({ campaign, onCampaignUpdate, readOnly }: S
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
-  const canSend = Boolean(campaign.audienceId) && campaign.status === "draft";
+  const canSend = Boolean(campaign.audienceId) && Boolean(campaign.fromEmail) && campaign.status === "draft";
 
   const runAction = async (action: () => Promise<Campaign>, successMsg: string) => {
     setBusy(true);
@@ -37,6 +37,15 @@ export default function ScheduleStep({ campaign, onCampaignUpdate, readOnly }: S
       <h3>Schedule or Send</h3>
       {!campaign.audienceId && (
         <div className="alert">Pick an audience in the previous step before you can send this campaign.</div>
+      )}
+      {!campaign.fromEmail && (
+        <div className="alert">
+          Set a From email in the Content step first — it must be on a domain you&apos;ve verified in{" "}
+          <a href="https://resend.com/domains" target="_blank" rel="noreferrer">
+            Resend
+          </a>
+          .
+        </div>
       )}
       {error && <div className="alert">{error}</div>}
       {notice && <p style={{ color: "var(--success)", fontWeight: 800 }}>{notice}</p>}
