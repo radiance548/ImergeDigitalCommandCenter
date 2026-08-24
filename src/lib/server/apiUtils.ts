@@ -42,6 +42,15 @@ export function withErrorHandling<TArgs extends unknown[]>(
       if (error instanceof ApiHttpError) {
         return apiError(error.status, error.message);
       }
+      // Next throws this internally when a route calls cookies()/headers()
+      // during its static-rendering attempt — every route here does, via
+      // getSessionUser. It's a control-flow signal, not a real failure:
+      // Next's own outer handler catches it, marks the route dynamic, and
+      // re-invokes it for real. Swallowing it here (like any other error)
+      // pre-empts that and turns a normal request into a bogus 500.
+      if (error && typeof error === "object" && "digest" in error && error.digest === "DYNAMIC_SERVER_USAGE") {
+        throw error;
+      }
       console.error("[api] unhandled error:", error);
       const message = error instanceof Error ? error.message : "Internal server error";
       return apiError(500, message);
