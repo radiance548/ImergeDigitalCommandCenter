@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { NAV_ITEMS, getActiveNavHref } from "@/lib/constants";
+import { NAV_ITEMS, STAFF_ROLE_LABELS, getActiveNavHref } from "@/lib/constants";
 import { useAppStore } from "@/store/useAppStore";
 
 export default function Sidebar() {
@@ -20,7 +20,7 @@ export default function Sidebar() {
     <aside className="sidebar">
       <div className="brand">
         <div className="brand-icon">
-          <Image src="/logo-icon.png" alt="" width={42} height={44} priority />
+          <Image src="/logo-icon.png" alt="" width={53} height={44} priority />
         </div>
         <div>
           Imerge
@@ -47,7 +47,7 @@ export default function Sidebar() {
             <span style={{ color: "var(--muted)", fontSize: 12 }}>
               {currentUser?.email}
               <br />
-              {currentUser?.role}
+              {currentUser && STAFF_ROLE_LABELS[currentUser.role]}
             </span>
           </div>
         </div>

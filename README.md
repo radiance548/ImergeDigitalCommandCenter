@@ -7,10 +7,13 @@ real backend: **Supabase** (Postgres + Auth + Row Level Security) and a full
 schedule/send → analytics) built directly on **Resend's Broadcast API**.
 
 The 7 original dashboards (Income, Marketing, Business Health, Client
-Profitability, Pipeline & Capacity, LTV/CAC, Settings) still run entirely
-client-side against `localStorage` by default — see
+Profitability, Pipeline & Capacity, LTV/CAC, Settings) still run their
+*business data* entirely client-side against `localStorage` by default — see
 [Two data layers](#two-data-layers) below for how that relates to the
-backend.
+backend. **Auth and permissions, however, are unified and real app-wide**:
+every dashboard is gated by the same Supabase Auth session + `staff_users`
+permissions the Campaign Builder uses — there's no separate demo login
+anymore, so a Supabase project is required even just to sign in.
 
 ## Stack
 
@@ -31,12 +34,10 @@ backend.
 npm test
 ```
 
-Runs a real (127-test) suite covering the logic that doesn't require a live
+Runs a real (117-test) suite covering the logic that doesn't require a live
 database connection:
 
 - **Formatting/date/aggregation helpers** (`src/lib/utils.ts`)
-- **Campaign merge-tag rendering** — personalization substitution, incl.
-  edge cases (missing tags, null values, malicious-looking input)
 - **Every Zod validation schema** — including a regression test for a real
   bug caught during development (a generic-inference issue that made Zod
   `.default()` values appear optional instead of guaranteed)
@@ -69,18 +70,13 @@ for at least: login → session cookie → an authenticated API call that RLS
 should allow; the same call with a user who should be denied by RLS;
 schedule → cancel-before-send; and a full campaign send in Resend's test mode.
 
-## Getting started (frontend only, no backend required)
+## Getting started
 
-```bash
-npm install
-npm run dev
-```
-
-Open http://localhost:3000 — the 7 dashboards work immediately with demo
-data in `localStorage`. See the seeded demo accounts in
-`src/lib/demoData.ts`.
-
-## Getting started (with the backend / Campaign Builder)
+A Supabase project is required before you can log in at all — there's no
+offline/demo-only login anymore (see the auth note above). The dashboards'
+own *business data* (transactions, deals, customers, etc.) still runs
+locally against `localStorage` with no setup, but you won't see it until
+you've signed in.
 
 1. **Create a Supabase project** at https://supabase.com (Pro plan for
    production — see the Stack section above for why). From **Settings ->
@@ -92,21 +88,30 @@ data in `localStorage`. See the seeded demo accounts in
    ```bash
    npm run db:migrate        # creates all tables
    psql "$DIRECT_URL" -f prisma/rls.sql   # enables + defines RLS policies
-   npm run db:seed             # provisions demo Supabase Auth users + staff
-                                # profiles + starter templates + demo audience
+   npm run db:seed             # starter templates + demo audience (no staff accounts)
    ```
    (`psql` ships with Postgres; alternatively paste `prisma/rls.sql` into the
    Supabase SQL editor.)
-4. Set `RESEND_API_KEY` in `.env.local` — the Campaign Builder is built
+4. **Provision the Super Admin** — the one account not created through the
+   app itself:
+   ```bash
+   npm run bootstrap:superadmin -- you@yourdomain.com "Your Name"
+   ```
+   This only takes an email + name, never a password — it sends a real
+   Supabase invite email, and you set your own password by clicking the
+   link (lands on `/reset-password`). Every other staff account (CEOs,
+   Social Media & Ad Manager, etc. — see the Auth section) is then created
+   the same self-service way, through **Settings → User Access &
+   Permissions**, once you're signed in as Super Admin.
+5. Set `RESEND_API_KEY` in `.env.local` — the Campaign Builder is built
    directly on Resend's Broadcast API, so this one is required, not optional
    (unlike the other `MAIL_PROVIDER` options, which are for possible future
    transactional-email use elsewhere — see "Mail providers" below).
-5. ```bash
+6. ```bash
    npm run dev
    ```
-   Go to **Marketing → Campaign Builder** to create your first campaign, and
-   log in with one of the accounts `npm run db:seed` created (same
-   emails/passwords as `src/lib/demoData.ts`'s `SEED_USERS`).
+   Sign in with the Super Admin account from step 4. Go to **Marketing →
+   Campaign Builder** to create your first campaign.
 
 ### Deploying (Vercel)
 
@@ -148,11 +153,26 @@ own `signInWithPassword` — Supabase verifies the password and issues the
 session cookie; we never see or store a password hash ourselves anymore.
 `src/lib/server/auth.ts`'s `getSessionUser()` resolves the current session
 via `@supabase/ssr`, then joins it to our `staff_users` table (role,
-department, per-dashboard permissions) by matching id — `StaffUser.id` in
+per-dashboard permissions) by matching id — `StaffUser.id` in
 `prisma/schema.prisma` is a UUID that **must equal** the corresponding
-`auth.users.id`; `prisma/seed.ts` shows the provisioning pattern
-(`supabase.auth.admin.createUser(...)` then a `staffUser.upsert` with that
-same id).
+`auth.users.id`. Two provisioning paths create that pair: `scripts/bootstrapSuperAdmin.ts`
+(one-time, for the single Super Admin account — see Getting started) and
+`POST /api/staff` (for every other account, Super Admin only, via
+Settings → User Access & Permissions in the app itself) — both follow the
+same pattern (`supabase.auth.admin.createUser`/`inviteUserByEmail`, then a
+matching `staffUser` row with the same id).
+
+**Roles and permissions.** `StaffRole` (`prisma/schema.prisma`) is a closed
+enum: `SUPER_ADMIN` (exactly one, always full access on every dashboard,
+non-editable — enforced both by `getSessionUser()` overriding its
+permissionMap unconditionally and by `PATCH /api/staff/[id]` refusing to
+touch a `SUPER_ADMIN` row at all), `CEO`, and `SOCIAL_MEDIA_AD_MANAGER`.
+Only the Super Admin can create staff or edit anyone's per-dashboard
+permission map; everyone can change their own password
+(`useAppStore.changeMyPassword`, re-verifies the current one via
+`supabase.auth.signInWithPassword` before calling `updateUser`) or request
+a reset link while logged out (`/reset-password`, which also doubles as
+the landing page for the Super Admin's initial invite link).
 
 **2. `requirePermission()` enforces it in application code**, same as
 before: every campaign/template/audience route calls
@@ -260,7 +280,6 @@ src/
       templateService.ts           # template CRUD (step 2)
       audienceService.ts            # audience/contacts CRUD + Resend sync (step 3)
     campaignAnalytics.ts       # pure aggregation math for step 5 — unit-tested
-    mergeTags.ts                 # pure {{merge_tag}} substitution — unit-tested
   app/api/
     auth/                        # login (Supabase proxy + rate limit), logout, me
     campaigns/                  # CRUD, /schedule, /send, /analytics
@@ -335,12 +354,15 @@ export interface DataRepository {
   load(): Promise<AppData>;
   save(data: AppData): Promise<void>;
   resetToDemoData(): Promise<AppData>;
-  getSessionUserId(): Promise<string | null>;
-  setSessionUserId(userId: string | null): Promise<void>;
   getTheme(): Promise<"light" | "dark">;
   setTheme(theme: "light" | "dark"): Promise<void>;
 }
 ```
+
+Note this interface only covers business data + theme — auth/session state
+isn't part of it. That lives entirely in Supabase Auth + the real
+`/api/auth/*` routes now (see the Auth section), fetched via `/api/auth/me`
+on load rather than read from `localStorage`.
 
 To move the 7 dashboards onto the same Supabase database the Campaign
 Builder already uses: implement a `PrismaRepository` against the tables
@@ -354,11 +376,6 @@ directly.
 
 ## Known gaps / next steps
 
-- **The dashboards' own auth is still demo-grade.** `useAppStore.login`
-  still checks plaintext passwords against `localStorage` for the 7
-  dashboards themselves — a separate system from the Campaign Builder's
-  real Supabase Auth + RLS. Moving the dashboards onto the same system is
-  the natural next step, alongside the `PrismaRepository` migration above.
 - **RLS is implemented but unverified against a live database** — see the
   callout at the end of the Auth section. Worth a deliberate test pass
   (confirm a user *without* marketing access is actually denied by
@@ -390,7 +407,8 @@ npm test                 # run the unit/logic test suite (see "Testing" above)
 npm run db:migrate        # create/update database tables
 npm run db:deploy          # apply migrations in production (no prompts)
 npm run db:studio           # Prisma Studio — browse your data
-npm run db:seed              # provision demo Supabase Auth users + staff profiles + starter templates + demo audience
+npm run db:seed              # starter templates + demo audience (no staff accounts)
+npm run bootstrap:superadmin  # one-time: invite the Super Admin account (see Getting started)
 ```
 
 After `db:migrate`/`db:deploy`, remember to (re-)apply

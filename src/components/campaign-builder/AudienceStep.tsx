@@ -36,11 +36,19 @@ export default function AudienceStep({ selectedAudienceId, onSelect, readOnly }:
     setError(null);
     try {
       const { audience } = await campaignApi.audiences.create({ name: newName.trim() });
+      // One contact per line: "email" alone, or "email, First, Last" — the
+      // first/last name is what {{{contact.first_name|there}}}-style merge
+      // tags in campaign content actually resolve to (see ContentStep) —
+      // without it, every send falls back to "there" for everyone.
       const contacts = pastedEmails
-        .split(/[\s,]+/)
-        .map((e) => e.trim())
-        .filter((e) => e.includes("@"))
-        .map((email) => ({ email }));
+        .split("\n")
+        .map((line) => line.trim())
+        .filter(Boolean)
+        .map((line) => {
+          const [email, firstName, lastName] = line.split(",").map((part) => part.trim());
+          return { email, firstName: firstName || undefined, lastName: lastName || undefined };
+        })
+        .filter((c) => c.email.includes("@"));
       if (contacts.length) {
         await campaignApi.audiences.importContacts(audience.id, contacts);
       }
@@ -92,14 +100,18 @@ export default function AudienceStep({ selectedAudienceId, onSelect, readOnly }:
             <input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="e.g. Newsletter subscribers" />
           </div>
           <div className="field" style={{ marginBottom: 12 }}>
-            <label>Paste emails (comma or newline separated)</label>
+            <label>Paste contacts (one per line)</label>
             <textarea
               rows={6}
               style={{ width: "100%" }}
               value={pastedEmails}
               onChange={(e) => setPastedEmails(e.target.value)}
-              placeholder={"ada@example.com\nkofi@example.com"}
+              placeholder={"ada@example.com, Ada, Lovelace\nkofi@example.com, Kofi"}
             />
+            <span style={{ color: "var(--muted)", fontSize: 12 }}>
+              First/last name are optional but drive personalization in your email content — a contact added with
+              just an email will always fall back to the default greeting.
+            </span>
           </div>
           <button className="btn primary" disabled={creating} onClick={createAudience}>
             {creating ? "Creating…" : "Create audience"}

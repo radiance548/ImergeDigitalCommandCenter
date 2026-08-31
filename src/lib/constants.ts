@@ -24,12 +24,10 @@ export function getActiveNavHref(pathname: string | null, items: NavItem[] = NAV
     .sort((a, b) => b.href.length - a.href.length)[0]?.href;
 }
 
-export const DEFAULT_STAFF_PERMISSIONS = {
-  income: "view",
-  marketing: "view",
-  health: "none",
-  clients: "view",
-  pipeline: "view",
-  ltv: "view",
-  settings: "none",
-} as const;
+/** Display labels for StaffRole enum values (see prisma/schema.prisma) —
+ *  the enum itself is SCREAMING_SNAKE, not what should render on screen. */
+export const STAFF_ROLE_LABELS: Record<string, string> = {
+  SUPER_ADMIN: "Super Admin",
+  CEO: "CEO",
+  SOCIAL_MEDIA_AD_MANAGER: "Social Media and Ad Manager",
+};

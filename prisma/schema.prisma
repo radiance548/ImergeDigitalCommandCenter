@@ -47,18 +47,29 @@ enum Dashboard {
   settings
 }
 
-/// A staff member's app-specific profile: role/department/dashboard
-/// permissions. Credentials and session management live entirely in
-/// Supabase Auth (the `auth.users` table, managed outside this schema) —
-/// `id` here MUST equal the corresponding `auth.users.id`. Provisioning a
-/// new staff account means creating both rows with the same id (see
-/// prisma/seed.ts and the Auth section of README.md).
+/// Exactly 3 real roles — SUPER_ADMIN is unique-by-convention (enforced in
+/// application code, not a DB constraint: the staff-creation endpoint never
+/// accepts this value, only a one-time bootstrap script sets it) and always
+/// has full, non-editable permissions everywhere — see getSessionUser()'s
+/// override in src/lib/server/auth.ts and the staff API's guards.
+enum StaffRole {
+  SUPER_ADMIN
+  CEO
+  SOCIAL_MEDIA_AD_MANAGER
+}
+
+/// A staff member's app-specific profile: role/dashboard permissions.
+/// Credentials and session management live entirely in Supabase Auth (the
+/// `auth.users` table, managed outside this schema) — `id` here MUST equal
+/// the corresponding `auth.users.id`. Provisioning a new staff account
+/// means creating both rows with the same id (see
+/// scripts/bootstrapSuperAdmin.ts for the first account and the in-app
+/// "Add Staff" flow for the rest — see the Auth section of README.md).
 model StaffUser {
   id          String       @id @db.Uuid
   name        String
   email       String       @unique
-  role        String
-  department  String
+  role        StaffRole
   isActive    Boolean      @default(true)
   permissionMap Json       @default("{}") // { [Dashboard]: Permission }
   createdAt   DateTime     @default(now())
@@ -233,7 +244,11 @@ model EmailTemplate {
   id          String   @id @default(cuid())
   name        String
   description String?
-  /// Raw HTML with {{mustache}} style merge tags, e.g. {{first_name}}
+  /// Raw HTML with Resend's own merge-tag syntax, resolved by Resend at
+  /// send time — not by this app. Triple braces, "contact." prefix,
+  /// optional "|fallback": {{{contact.first_name|there}}}. Also supports
+  /// {{{RESEND_UNSUBSCRIBE_URL}}} (only resolves once an audience is
+  /// attached to the broadcast).
   html        String
   thumbnailUrl String?
   isSystem    Boolean  @default(false) // seeded/starter templates vs user-created

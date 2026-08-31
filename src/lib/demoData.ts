@@ -5,75 +5,11 @@ import type {
   Customer,
   DailyMetric,
   Deal,
-  StaffUser,
   TeamCapacity,
   TimeEntry,
   Transaction,
 } from "./types";
 import { choice, daysAgo, rand, uid } from "./utils";
-
-export const SEED_USERS: StaffUser[] = [
-  {
-    id: "admin",
-    name: "Oby / CEO",
-    email: "obinwany@gmail.com",
-    role: "Super Admin",
-    department: "Executive",
-    isActive: true,
-    password: "Admin123",
-    permissions: { income: "full", marketing: "full", health: "full", clients: "full", pipeline: "full", ltv: "full", settings: "full" },
-  },
-  {
-    id: "esther",
-    name: "Esther Adeola Olaoye",
-    email: "olaoyeadeolae1@gmail.com",
-    role: "Operating Manager",
-    department: "Operation",
-    isActive: true,
-    password: "Esther569",
-    permissions: { income: "none", marketing: "view", health: "edit", clients: "edit", pipeline: "edit", ltv: "view", settings: "none" },
-  },
-  {
-    id: "oby2",
-    name: "oby 2",
-    email: "ogbynwanya@gmail.com",
-    role: "General Staff",
-    department: "General",
-    isActive: true,
-    password: "Obytest",
-    permissions: { income: "view", marketing: "view", health: "none", clients: "view", pipeline: "view", ltv: "view", settings: "none" },
-  },
-  {
-    id: "paula",
-    name: "Paula Ogundeji",
-    email: "ogundejipaula@gmail.com",
-    role: "Social media and Ad Manager",
-    department: "Marketing",
-    isActive: true,
-    password: "Paula297",
-    permissions: { income: "none", marketing: "edit", health: "edit", clients: "edit", pipeline: "edit", ltv: "edit", settings: "none" },
-  },
-  {
-    id: "radiance",
-    name: "Radiance Ngonnase",
-    email: "radiance.olorunobafemi@outlook.com",
-    role: "Graphic & Website Specialist",
-    department: "Design",
-    isActive: true,
-    password: "Rad897",
-    permissions: { income: "none", marketing: "view", health: "none", clients: "view", pipeline: "view", ltv: "view", settings: "none" },
-  },
-  {
-    id: "kachi",
-    name: "Kachi Nwanya",
-    email: "kachinwanya@gmail.com",
-    role: "CTO",
-    department: "CEO",
-    isActive: true,
-    password: "Kachi246",
-    permissions: { income: "view", marketing: "view", health: "view", clients: "view", pipeline: "view", ltv: "view", settings: "view" },
-  },
-];
 
 export function generateDemoData(): AppData {
   const categories = ["Software", "Ads", "Salaries", "Design", "Hosting", "Transport", "Office", "Training"];
@@ -202,7 +138,6 @@ export function generateDemoData(): AppData {
   });
 
   return {
-    users: SEED_USERS.map((u) => ({ ...u, permissions: { ...u.permissions } })),
     settings: {
       currency: "₦",
       fiscalStartMonth: "January",

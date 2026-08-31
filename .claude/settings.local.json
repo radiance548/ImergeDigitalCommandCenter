@@ -7,7 +7,29 @@
       "Bash(npm run *)",
       "Bash(npx tsx --env-file-if-exists=.env.local -e ' *)",
       "Bash(npx tsx *)",
-      "Bash(tasklist //FI \"IMAGENAME eq node.exe\")"
+      "Bash(tasklist //FI \"IMAGENAME eq node.exe\")",
+      "Bash(npx prisma *)",
+      "Bash(echo \"TSC_EXIT:$?\")",
+      "Bash(tasklist //FI \"IMAGENAME eq node.exe\" //FO CSV)",
+      "WebFetch(domain:resend.com)",
+      "WebSearch",
+      "Bash(node -e ' *)",
+      "Bash(curl -s https://api.resend.com/audiences -H 'Authorization: Bearer __TRACKED_VAR__')",
+      "Bash(curl -s https://api.resend.com/segments -H 'Authorization: Bearer __TRACKED_VAR__')",
+      "Bash(curl -s https://api.resend.com/broadcasts -H 'Authorization: Bearer __TRACKED_VAR__')",
+      "Bash(curl -s https://api.resend.com/broadcasts/b7650d28-4c6a-4ad4-a5bc-d3495c4ed0e4 -H 'Authorization: Bearer __TRACKED_VAR__')",
+      "Bash(curl -s https://api.resend.com/audiences/009c6481-8cbd-4e98-884a-1352580138d3/contacts -H 'Authorization: Bearer __TRACKED_VAR__')",
+      "Bash(ls -la \"/c/Users/radia/.claude/projects/c--Users-radia-Imerge-Digital-Command-Center/memory/\" 2>&1)",
+      "Read(//c/Users/radia/.claude/projects/c--Users-radia-Imerge-Digital-Command-Center/memory//**)",
+      "Read(//c/Users/radia/Downloads/**)",
+      "Bash(mkdir -p /c/Users/radia/AppData/Local/Temp/claude/c--Users-radia-Imerge-Digital-Command-Center/464515e7-e37c-4f78-b82c-21a84e925944/scratchpad/logowork)",
+      "Read(//c/Users/radia/AppData/Local/Temp/claude/c--Users-radia-Imerge-Digital-Command-Center/464515e7-e37c-4f78-b82c-21a84e925944/scratchpad/logowork/**)",
+      "Bash(cp \"C:/Users/radia/Downloads/logo-icon.png\" \"/c/Users/radia/Imerge Digital Command Center/public/logo-icon.png\" && ls -la \"/c/Users/radia/Imerge Digital Command Center/public/logo-icon.png\")",
+      "Bash(cat)",
+      "Bash(node isolate-favicon.js)"
+    ],
+    "additionalDirectories": [
+      "C:\\Users\\radia\\Downloads"
     ]
   }
 }

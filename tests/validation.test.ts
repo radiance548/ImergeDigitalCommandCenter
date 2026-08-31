@@ -3,10 +3,12 @@ import { describe, test } from "./harness";
 import {
   createAudienceSchema,
   createCampaignSchema,
+  createStaffSchema,
   createTemplateSchema,
   importContactsSchema,
   scheduleCampaignSchema,
   updateCampaignSchema,
+  updateStaffSchema,
 } from "../src/lib/server/validation";
 
 describe("validation: createCampaignSchema", () => {
@@ -188,5 +190,67 @@ describe("validation: importContactsSchema", () => {
     const contacts = Array.from({ length: 5001 }, (_, i) => ({ email: `user${i}@example.com` }));
     const result = importContactsSchema.safeParse({ contacts });
     assert.equal(result.success, false);
+  });
+});
+
+describe("validation: createStaffSchema", () => {
+  test("accepts a well-formed staff account", () => {
+    const result = createStaffSchema.safeParse({
+      name: "Jane CEO",
+      email: "jane@example.com",
+      password: "longenoughpw",
+      role: "CEO",
+    });
+    assert.ok(result.success);
+  });
+
+  test("rejects a password under 8 characters", () => {
+    const result = createStaffSchema.safeParse({
+      name: "Jane CEO",
+      email: "jane@example.com",
+      password: "short1",
+      role: "CEO",
+    });
+    assert.equal(result.success, false);
+  });
+
+  // Regression: there must be exactly one Super Admin, created once by
+  // scripts/bootstrapSuperAdmin.ts, never through this API — see the
+  // route handler's own-row guard for the other half of this invariant.
+  test("rejects SUPER_ADMIN as a role — this endpoint can never mint a second one", () => {
+    const result = createStaffSchema.safeParse({
+      name: "Someone",
+      email: "someone@example.com",
+      password: "longenoughpw",
+      role: "SUPER_ADMIN",
+    });
+    assert.equal(result.success, false);
+  });
+});
+
+describe("validation: updateStaffSchema", () => {
+  test("an empty object is valid (no-op update)", () => {
+    assert.ok(updateStaffSchema.safeParse({}).success);
+  });
+
+  test("accepts a partial permissionMap update", () => {
+    const result = updateStaffSchema.safeParse({ permissionMap: { marketing: "edit" } });
+    assert.ok(result.success);
+  });
+
+  test("rejects SUPER_ADMIN as a role on update too", () => {
+    const result = updateStaffSchema.safeParse({ role: "SUPER_ADMIN" });
+    assert.equal(result.success, false);
+  });
+
+  test("has no password or email field to parse at all", () => {
+    // Passwords/emails aren't settable post-creation through this schema —
+    // confirm they're silently stripped, not merely optional.
+    const result = updateStaffSchema.safeParse({ password: "whatever", email: "new@example.com" });
+    assert.ok(result.success);
+    if (result.success) {
+      assert.equal("password" in result.data, false);
+      assert.equal("email" in result.data, false);
+    }
   });
 });

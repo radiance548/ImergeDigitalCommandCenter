@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { NAV_ITEMS, getActiveNavHref } from "@/lib/constants";
+import { NAV_ITEMS, STAFF_ROLE_LABELS, getActiveNavHref } from "@/lib/constants";
 import { useAppStore } from "@/store/useAppStore";
 import { useUIStore } from "@/store/useUIStore";
 import { downloadRowsAsCSV, exportDashboardPDF } from "@/lib/exportUtils";
@@ -45,7 +45,8 @@ export default function Topbar() {
       </div>
       <div className="actions">
         <span className="role-pill">
-          <i className="fa-solid fa-user-shield" /> {currentUser?.role} • {permissionLabel(permission)}
+          <i className="fa-solid fa-user-shield" /> {currentUser && STAFF_ROLE_LABELS[currentUser.role]} •{" "}
+          {permissionLabel(permission)}
         </span>
         {canExport && (
           <>

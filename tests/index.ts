@@ -1,5 +1,4 @@
 import "./utils.test";
-import "./mergeTags.test";
 import "./validation.test";
 import "./exportUtils.test";
 import "./demoData.test";

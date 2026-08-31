@@ -19,10 +19,12 @@ const RESEND_API_BASE = "https://api.resend.com";
  *   POST   /broadcasts/{id}/send      body: { scheduled_at?: string }
  *   DELETE /broadcasts/{id}
  *
- * Re-verify against Resend's current API reference before depending on
- * this in production — double-check field names in particular
- * (`audience_id` vs `audienceId` snake/camel case has shifted in some of
- * Resend's endpoints historically).
+ * Resend renamed "Audiences" to "Segments" — GET /audiences and GET
+ * /segments return identical resources with identical ids (confirmed
+ * directly against a live account), so `/audiences` + `/audiences/{id}/contacts`
+ * still work fine for creating an audience/adding contacts. Broadcast
+ * *creation* specifically requires the newer `segment_id` field name
+ * though (same id value, just a different key) — see createOrUpdateBroadcast.
  */
 export class ResendBroadcastProvider implements BroadcastProvider {
   readonly key = "resend";
@@ -72,9 +74,19 @@ export class ResendBroadcastProvider implements BroadcastProvider {
   }
 
   async createOrUpdateBroadcast(input: CreateOrUpdateBroadcastInput): Promise<{ externalId: string }> {
+    // Resend renamed "Audiences" to "Segments" — /audiences and /segments
+    // now return the exact same resources with identical ids (confirmed
+    // directly against a live account: GET /audiences and GET /segments
+    // returned identical lists), but broadcast creation specifically
+    // requires the field to be named `segment_id`, not `audience_id`. The
+    // old `audience_id` field name is silently accepted by some Resend
+    // endpoints for backward compat, but NOT here — without a resolvable
+    // segment_id, Resend can't tell which contact is receiving each send,
+    // which is exactly why {{{contact.first_name|there}}}-style merge
+    // tags rendered as literal text instead of being substituted.
     const body = JSON.stringify({
       name: input.name,
-      audience_id: input.audienceExternalId,
+      segment_id: input.audienceExternalId,
       from: input.from.name ? `${input.from.name} <${input.from.email}>` : input.from.email,
       subject: input.subject,
       html: input.html,

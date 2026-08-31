@@ -18,17 +18,18 @@ export type DashboardId =
 
 export type Permissions = Record<DashboardId, Permission>;
 
-export interface StaffUser {
+export type StaffRole = "SUPER_ADMIN" | "CEO" | "SOCIAL_MEDIA_AD_MANAGER";
+
+/** The authenticated session's own profile — backed by real Supabase Auth
+ *  + the `staff_users` table (see src/lib/server/auth.ts), not local demo
+ *  data. No password field: credentials never leave Supabase Auth. */
+export interface SessionUser {
   id: string;
   name: string;
   email: string;
-  role: string;
-  department: string;
+  role: StaffRole;
   isActive: boolean;
-  /** NOTE: plaintext in the original app / localStorage demo.
-   *  A real backend MUST hash this and never send it to the client. */
-  password: string;
-  permissions: Permissions;
+  permissionMap: Permissions;
 }
 
 export interface Transaction {
@@ -130,7 +131,6 @@ export interface Settings {
 /** The whole application dataset. In a real integration this would
  *  likely be split across several API resources instead of one blob. */
 export interface AppData {
-  users: StaffUser[];
   settings: Settings;
   transactions: Transaction[];
   campaigns: Campaign[];
@@ -150,8 +150,7 @@ export type CollectionKey =
   | "time_entries"
   | "deals"
   | "team"
-  | "customers"
-  | "users";
+  | "customers";
 
 export interface NavItem {
   /** Which permission dimension gates this item (see canView/canEdit). */

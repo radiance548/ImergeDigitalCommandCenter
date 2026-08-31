@@ -1,7 +1,7 @@
 import { create } from "zustand";
-import { DEFAULT_STAFF_PERMISSIONS } from "@/lib/constants";
 import { generateDemoData } from "@/lib/demoData";
 import { repository } from "@/lib/repository";
+import { getSupabaseBrowserClient } from "@/lib/client/supabase";
 import type {
   AppData,
   Campaign,
@@ -11,15 +11,19 @@ import type {
   DashboardId,
   Deal,
   Permission,
+  SessionUser,
   Settings,
-  StaffUser,
+  StaffRole,
   TimeEntry,
   Transaction,
 } from "@/lib/types";
 import { choice, dateISO, normalizeEmail, rand, uid } from "@/lib/utils";
 
+type AssignableStaffRole = Exclude<StaffRole, "SUPER_ADMIN">;
+
 interface AppState {
   data: AppData | null;
+  sessionUser: SessionUser | null;
   currentUserId: string | null;
   theme: "light" | "dark";
   isLoading: boolean;
@@ -29,9 +33,10 @@ interface AppState {
 
   login: (email: string, password: string) => Promise<{ ok: boolean; message?: string }>;
   logout: () => Promise<void>;
+  requestPasswordReset: (email: string) => Promise<{ ok: boolean; message?: string }>;
   resetDemoData: () => Promise<void>;
 
-  currentUser: () => StaffUser | null;
+  currentUser: () => SessionUser | null;
   permission: (dashboard: DashboardId) => Permission;
   canView: (dashboard: DashboardId) => boolean;
   canEdit: (dashboard: DashboardId) => boolean;
@@ -61,10 +66,15 @@ interface AppState {
   saveSettings: (settings: Settings) => Promise<void>;
   changeMyPassword: (currentPassword: string, newPassword: string) => Promise<{ ok: boolean; message?: string }>;
 
-  addStaffUser: (input: { name: string; email: string; password: string; department: string; role: string }) => Promise<{ ok: boolean; message?: string }>;
+  addStaffUser: (input: {
+    name: string;
+    email: string;
+    password: string;
+    role: AssignableStaffRole;
+  }) => Promise<{ ok: boolean; message?: string }>;
   deleteStaffUser: (userId: string) => Promise<void>;
   saveAllStaffSettings: (
-    updates: Record<string, { role?: string; department?: string; password?: string; isActive?: boolean; permissions?: Partial<Record<DashboardId, Permission>> }>
+    updates: Record<string, { role?: AssignableStaffRole; isActive?: boolean; permissions?: Partial<Record<DashboardId, Permission>> }>
   ) => Promise<void>;
 }
 
@@ -74,17 +84,19 @@ async function persist(data: AppData) {
 
 export const useAppStore = create<AppState>((set, get) => ({
   data: null,
+  sessionUser: null,
   currentUserId: null,
   theme: "dark",
   isLoading: true,
 
   init: async () => {
-    const [data, currentUserId, theme] = await Promise.all([
+    const [data, theme, meRes] = await Promise.all([
       repository.load(),
-      repository.getSessionUserId(),
       repository.getTheme(),
+      fetch("/api/auth/me").catch(() => null),
     ]);
-    set({ data, currentUserId, theme, isLoading: false });
+    const sessionUser: SessionUser | null = meRes && meRes.ok ? (await meRes.json()).user : null;
+    set({ data, theme, sessionUser, currentUserId: sessionUser?.id ?? null, isLoading: false });
   },
 
   toggleTheme: async () => {
@@ -94,52 +106,40 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   login: async (email, password) => {
-    const data = get().data;
-    if (!data) return { ok: false, message: "App is still loading." };
-    const normalized = normalizeEmail(email);
-    const user = data.users.find((u) => normalizeEmail(u.email) === normalized);
-    if (!user) return { ok: false, message: "No account found. Please check email spelling." };
-    if (user.isActive === false) return { ok: false, message: "This account is inactive. Please contact admin." };
-    if (String(user.password) !== String(password)) return { ok: false, message: "Incorrect password." };
+    const res = await fetch("/api/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: normalizeEmail(email), password }),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) return { ok: false, message: body.error || "Login failed." };
 
-    // Best-effort: also establish a real backend session (httpOnly cookie)
-    // for the Campaign Builder's API routes. This is a separate auth system
-    // from the localStorage-backed dashboards above (see README — "Two data
-    // layers"), so if the backend isn't configured yet (no DATABASE_URL) or
-    // this account hasn't been seeded server-side, the dashboards still work
-    // fine; only Campaign Builder API calls would be unavailable until it is.
-    //
-    // Must happen BEFORE currentUserId is set below: setting currentUserId
-    // flips AppShell straight to the authenticated view, remounting whatever
-    // page the user was last on. A page like Campaign Builder's list
-    // (marketing/campaigns/page.tsx) fetches from a cookie-authenticated API
-    // route in a mount-only effect — if that fetch fires before this cookie
-    // exists, it 401s once and has no way to know to retry, leaving a stale
-    // "not signed in" error on screen until the user navigates away and back.
-    try {
-      await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: normalized, password }),
-      });
-    } catch {
-      // Ignore — backend may not be configured. See note above.
-    }
-
-    await repository.setSessionUserId(user.id);
-    set({ currentUserId: user.id });
-
+    const sessionUser: SessionUser = body.user;
+    set({ sessionUser, currentUserId: sessionUser.id });
     return { ok: true };
   },
 
   logout: async () => {
-    await repository.setSessionUserId(null);
-    set({ currentUserId: null });
     try {
       await fetch("/api/auth/logout", { method: "POST" });
     } catch {
-      // Ignore — see note in login().
+      // Ignore — still clear local session state below regardless, so the
+      // user can always get back to the login screen.
     }
+    set({ sessionUser: null, currentUserId: null });
+  },
+
+  requestPasswordReset: async (email) => {
+    const supabase = getSupabaseBrowserClient();
+    // Points at the server-side verification route (src/app/auth/confirm),
+    // not directly at /reset-password — see that route's docstring.
+    await supabase.auth.resetPasswordForEmail(normalizeEmail(email), {
+      redirectTo: `${window.location.origin}/auth/confirm?next=/reset-password`,
+    });
+    // Always the same message regardless of outcome — don't leak whether
+    // an account exists for this email (Supabase itself doesn't error on
+    // an unknown address for this call, so this falls out naturally).
+    return { ok: true, message: "If that email has an account, a reset link was sent." };
   },
 
   resetDemoData: async () => {
@@ -147,21 +147,17 @@ export const useAppStore = create<AppState>((set, get) => ({
     set({ data });
   },
 
-  currentUser: () => {
-    const { data, currentUserId } = get();
-    if (!data || !currentUserId) return null;
-    return data.users.find((u) => u.id === currentUserId && u.isActive !== false) || null;
-  },
+  currentUser: () => get().sessionUser,
 
   permission: (dashboard) => {
-    const user = get().currentUser();
-    return user?.permissions?.[dashboard] || "none";
+    const user = get().sessionUser;
+    return (user?.permissionMap?.[dashboard] as Permission) || "none";
   },
 
   canView: (dashboard) => ["view", "edit", "full"].includes(get().permission(dashboard)),
   canEdit: (dashboard) => ["edit", "full"].includes(get().permission(dashboard)),
   canExport: (dashboard) => ["view", "edit", "full"].includes(get().permission(dashboard)),
-  isAdmin: () => get().currentUser()?.id === "admin" || get().permission("settings") === "full",
+  isAdmin: () => get().sessionUser?.role === "SUPER_ADMIN",
 
   addTransaction: async (tx) => {
     const data = get().data;
@@ -341,83 +337,55 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   changeMyPassword: async (currentPassword, newPassword) => {
-    const data = get().data;
-    const user = get().currentUser();
-    if (!data || !user) return { ok: false, message: "You need to login first." };
-    if (!newPassword || newPassword.length < 6) return { ok: false, message: "New password must be at least 6 characters." };
-    const stored = data.users.find((u) => u.id === user.id);
-    if (!stored) return { ok: false, message: "User not found." };
-    if (String(stored.password) !== String(currentPassword)) return { ok: false, message: "Current password is incorrect." };
-    const users = data.users.map((u) => (u.id === user.id ? { ...u, password: newPassword } : u));
-    const next = { ...data, users };
-    set({ data: next });
-    await persist(next);
+    const user = get().sessionUser;
+    if (!user) return { ok: false, message: "You need to login first." };
+    if (!newPassword || newPassword.length < 8) {
+      return { ok: false, message: "New password must be at least 8 characters." };
+    }
+    const supabase = getSupabaseBrowserClient();
+    // Re-verify the current password the same way logging in does, rather
+    // than trusting the caller — Supabase's updateUser() doesn't require
+    // this itself, but the old "type your current password" UX contract
+    // depends on it.
+    const { error: verifyError } = await supabase.auth.signInWithPassword({ email: user.email, password: currentPassword });
+    if (verifyError) return { ok: false, message: "Current password is incorrect." };
+    const { error: updateError } = await supabase.auth.updateUser({ password: newPassword });
+    if (updateError) return { ok: false, message: updateError.message };
     return { ok: true };
   },
 
-  addStaffUser: async ({ name, email, password, department, role }) => {
-    const data = get().data;
-    if (!data) return { ok: false, message: "App is still loading." };
-    const normalized = normalizeEmail(email);
-    if (!normalized || !normalized.includes("@")) return { ok: false, message: "Enter a valid staff email." };
-    if (!password || password.length < 4) return { ok: false, message: "Enter a password of at least 4 characters." };
-
-    const existing = data.users.find((u) => normalizeEmail(u.email) === normalized);
-    let users: StaffUser[];
-    if (existing) {
-      users = data.users.map((u) =>
-        u.id === existing.id
-          ? { ...u, name: name || u.name, password, department: department || u.department, role: role || u.role, isActive: true }
-          : u
-      );
-    } else {
-      users = [
-        ...data.users,
-        {
-          id: `user_${Date.now()}`,
-          name: name || normalized.split("@")[0],
-          email: normalized,
-          password,
-          department: department || "General",
-          role: role || "General Staff",
-          isActive: true,
-          permissions: { ...DEFAULT_STAFF_PERMISSIONS },
-        },
-      ];
-    }
-    const next = { ...data, users };
-    set({ data: next });
-    await persist(next);
+  addStaffUser: async ({ name, email, password, role }) => {
+    const res = await fetch("/api/staff", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, email: normalizeEmail(email), password, role }),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) return { ok: false, message: body.error || "Could not save staff account." };
     return { ok: true };
   },
 
   deleteStaffUser: async (userId) => {
-    const data = get().data;
-    if (!data) return;
-    const users = data.users.filter((u) => u.id !== userId || u.id === "admin");
-    const next = { ...data, users };
-    set({ data: next });
-    await persist(next);
+    await fetch(`/api/staff/${userId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ isActive: false }),
+    });
   },
 
   saveAllStaffSettings: async (updates) => {
-    const data = get().data;
-    if (!data) return;
-    const users = data.users.map((u) => {
-      if (u.id === "admin") return u;
-      const update = updates[u.id];
-      if (!update) return u;
-      return {
-        ...u,
-        role: update.role ?? u.role,
-        department: update.department ?? u.department,
-        password: update.password ?? u.password,
-        isActive: update.isActive ?? u.isActive,
-        permissions: { ...u.permissions, ...(update.permissions || {}) } as StaffUser["permissions"],
-      };
-    });
-    const next = { ...data, users };
-    set({ data: next });
-    await persist(next);
+    await Promise.all(
+      Object.entries(updates).map(([userId, update]) =>
+        fetch(`/api/staff/${userId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            role: update.role,
+            isActive: update.isActive,
+            permissionMap: update.permissions,
+          }),
+        })
+      )
+    );
   },
 }));

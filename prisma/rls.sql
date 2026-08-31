@@ -46,8 +46,8 @@ alter table campaign_events        enable row level security;
 alter table campaign_events        force  row level security;
 
 -- staff_users: everyone authenticated can read their own row (needed to
--- resolve their own permissions); only an admin (settings=full) can
--- modify other users' rows.
+-- resolve their own permissions); only the Super Admin (or, incidentally,
+-- anyone else granted settings=full) can modify other users' rows.
 drop policy if exists staff_users_select_self on staff_users;
 create policy staff_users_select_self on staff_users
   for select
@@ -61,7 +61,7 @@ create policy staff_users_admin_all on staff_users
       select 1 from staff_users su
       where su.id = auth.uid()
         and su."isActive" = true
-        and (su."permissionMap"->>'settings') = 'full'
+        and (su."role" = 'SUPER_ADMIN' or (su."permissionMap"->>'settings') = 'full')
     )
   )
   with check (
@@ -69,7 +69,7 @@ create policy staff_users_admin_all on staff_users
       select 1 from staff_users su
       where su.id = auth.uid()
         and su."isActive" = true
-        and (su."permissionMap"->>'settings') = 'full'
+        and (su."role" = 'SUPER_ADMIN' or (su."permissionMap"->>'settings') = 'full')
     )
   );
 

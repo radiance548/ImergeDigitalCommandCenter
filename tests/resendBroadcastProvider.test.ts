@@ -73,7 +73,7 @@ describe("mail: ResendBroadcastProvider", () => {
 
     assert.equal(result.externalId, "brd_1");
     assert.equal(calls[0].method, "POST");
-    assert.equal((calls[0].body as { audience_id: string }).audience_id, "aud_123");
+    assert.equal((calls[0].body as { segment_id: string }).segment_id, "aud_123");
     restore();
   });
 
