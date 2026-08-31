@@ -49,8 +49,12 @@ export default function AudienceStep({ selectedAudienceId, onSelect, readOnly }:
           return { email, firstName: firstName || undefined, lastName: lastName || undefined };
         })
         .filter((c) => c.email.includes("@"));
-      if (contacts.length) {
-        await campaignApi.audiences.importContacts(audience.id, contacts);
+      // The import API caps each request at 5000 contacts (it upserts the
+      // whole batch inside one DB transaction) — split larger pastes into
+      // chunks so a big list doesn't just fail outright.
+      const IMPORT_CHUNK_SIZE = 5000;
+      for (let i = 0; i < contacts.length; i += IMPORT_CHUNK_SIZE) {
+        await campaignApi.audiences.importContacts(audience.id, contacts.slice(i, i + IMPORT_CHUNK_SIZE));
       }
       setNewName("");
       setPastedEmails("");
