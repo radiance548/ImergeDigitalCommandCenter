@@ -22,10 +22,6 @@ export interface DataRepository {
   /** Replace all data with freshly generated demo data. */
   resetToDemoData(): Promise<AppData>;
 
-  /** Session: which staff user id is currently logged in (if any). */
-  getSessionUserId(): Promise<string | null>;
-  setSessionUserId(userId: string | null): Promise<void>;
-
   /** Theme preference persistence. */
   getTheme(): Promise<"light" | "dark">;
   setTheme(theme: "light" | "dark"): Promise<void>;

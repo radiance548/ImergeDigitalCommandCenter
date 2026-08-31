@@ -100,7 +100,7 @@ button, input, select, textarea {
 .brand { display: flex; align-items: center; gap: 12px; font-weight: 800; font-size: 18px; }
 
 .brand-icon { display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-.brand-icon img { display: block; width: 100%; height: auto; }
+.brand-icon img { display: block; }
 
 .nav { display: flex; flex-direction: column; gap: 8px; overflow: auto; }
 
@@ -142,7 +142,7 @@ button, input, select, textarea {
   border-radius: 26px; box-shadow: var(--shadow); padding: 28px;
 }
 
-.login-logo img { display: block; width: 58px; height: auto; }
+.login-logo img { display: block; }
 
 .theme-toggle {
   border: 1px solid var(--border); background: var(--surface-2); color: var(--text);

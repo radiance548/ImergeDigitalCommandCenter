@@ -55,3 +55,31 @@ export const importContactsSchema = z.object({
     .min(1)
     .max(5000),
 });
+
+// ------------------------------------------------------------------
+// Staff management (see src/app/api/staff/**)
+// ------------------------------------------------------------------
+
+const dashboardEnum = z.enum(["income", "marketing", "health", "clients", "pipeline", "ltv", "settings"]);
+const permissionEnum = z.enum(["none", "view", "edit", "full"]);
+const permissionMapSchema = z.record(dashboardEnum, permissionEnum);
+
+// SUPER_ADMIN deliberately excluded from every schema below — there is
+// exactly one, created once by scripts/bootstrapSuperAdmin.ts, never via
+// this API (see requireSuperAdmin's own-row guard in the route handlers
+// for the other half of this invariant).
+const assignableStaffRole = z.enum(["CEO", "SOCIAL_MEDIA_AD_MANAGER"]);
+
+export const createStaffSchema = z.object({
+  name: z.string().min(1).max(120),
+  email: z.string().email(),
+  password: z.string().min(8, "Password must be at least 8 characters"),
+  role: assignableStaffRole,
+  permissionMap: permissionMapSchema.optional(),
+});
+
+export const updateStaffSchema = z.object({
+  role: assignableStaffRole.optional(),
+  isActive: z.boolean().optional(),
+  permissionMap: permissionMapSchema.optional(),
+});

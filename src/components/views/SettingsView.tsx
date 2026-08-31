@@ -1,10 +1,10 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAppStore } from "@/store/useAppStore";
 import { useSyncExportRows } from "@/hooks/useSyncExportRows";
-import { NAV_ITEMS } from "@/lib/constants";
-import type { DashboardId, Permission } from "@/lib/types";
+import { NAV_ITEMS, STAFF_ROLE_LABELS } from "@/lib/constants";
+import type { DashboardId, Permission, StaffRole } from "@/lib/types";
 
 const CURRENCIES = ["$", "€", "£", "₦", "₮"];
 const MONTHS = [
@@ -12,10 +12,20 @@ const MONTHS = [
   "July", "August", "September", "October", "November", "December",
 ];
 const PERMISSION_LEVELS: Permission[] = ["none", "view", "edit", "full"];
+const ASSIGNABLE_ROLES: Exclude<StaffRole, "SUPER_ADMIN">[] = ["CEO", "SOCIAL_MEDIA_AD_MANAGER"];
 // dedupe: Campaign Builder shares the "marketing" id with Marketing
 // Activity (see constants.ts), and this table has one column per
 // permission dimension, not per nav link.
 const ROUTES = Array.from(new Set(NAV_ITEMS.map((n) => n.id)));
+
+interface StaffRow {
+  id: string;
+  name: string;
+  email: string;
+  role: StaffRole;
+  isActive: boolean;
+  permissionMap: Partial<Record<DashboardId, Permission>>;
+}
 
 export default function SettingsView() {
   const data = useAppStore((s) => s.data);
@@ -29,15 +39,26 @@ export default function SettingsView() {
 
   useSyncExportRows(data ? [data.settings] : []);
 
+  const [staff, setStaff] = useState<StaffRow[] | null>(null);
   const [passwordNotice, setPasswordNotice] = useState<string | null>(null);
   const [staffNotice, setStaffNotice] = useState<string | null>(null);
-  const [showPasswords, setShowPasswords] = useState(false);
 
   const settingsFormRef = useRef<HTMLDivElement>(null);
   const categoryBudgetsRef = useRef<HTMLDivElement>(null);
   const passwordFormRef = useRef<HTMLDivElement>(null);
   const newStaffFormRef = useRef<HTMLDivElement>(null);
   const staffTableRef = useRef<HTMLTableSectionElement>(null);
+
+  const loadStaff = () => {
+    fetch("/api/staff")
+      .then((r) => r.json())
+      .then((body) => setStaff(body.staff || []))
+      .catch(() => setStaff([]));
+  };
+
+  useEffect(() => {
+    if (isAdmin) loadStaff();
+  }, [isAdmin]);
 
   if (!data) return null;
   const s = data.settings;
@@ -78,11 +99,16 @@ export default function SettingsView() {
     const name = (el.querySelector("#newUserName") as HTMLInputElement).value.trim();
     const email = (el.querySelector("#newUserEmail") as HTMLInputElement).value.trim();
     const password = (el.querySelector("#newUserPassword") as HTMLInputElement).value.trim();
-    const department = (el.querySelector("#newUserDept") as HTMLInputElement).value.trim();
-    const role = (el.querySelector("#newUserRole") as HTMLInputElement).value.trim();
-    const result = await addStaffUser({ name, email, password, department, role });
+    const role = (el.querySelector("#newUserRole") as HTMLSelectElement).value as Exclude<StaffRole, "SUPER_ADMIN">;
+    const result = await addStaffUser({ name, email, password, role });
     setStaffNotice(result.ok ? "Staff account saved." : result.message || "Could not save staff account.");
+    if (result.ok) loadStaff();
     setTimeout(() => setStaffNotice(null), 3000);
+  };
+
+  const handleDeleteStaff = async (userId: string) => {
+    await deleteStaffUser(userId);
+    loadStaff();
   };
 
   const handleSaveAllStaff = async () => {
@@ -91,19 +117,20 @@ export default function SettingsView() {
     const updates: Parameters<typeof saveAllStaffSettings>[0] = {};
     tbody.querySelectorAll<HTMLTableRowElement>("[data-user-row]").forEach((row) => {
       const userId = row.dataset.userRow;
-      if (!userId || userId === "admin") return;
-      const role = (row.querySelector('[data-field="role"]') as HTMLInputElement)?.value;
-      const department = (row.querySelector('[data-field="department"]') as HTMLInputElement)?.value;
-      const password = (row.querySelector('[data-field="password"]') as HTMLInputElement)?.value;
+      if (!userId) return;
+      const role = (row.querySelector('[data-field="role"]') as HTMLSelectElement)?.value as
+        | Exclude<StaffRole, "SUPER_ADMIN">
+        | undefined;
       const isActive = (row.querySelector('[data-field="isActive"]') as HTMLSelectElement)?.value === "active";
       const permissions: Partial<Record<DashboardId, Permission>> = {};
       row.querySelectorAll<HTMLSelectElement>("[data-permission]").forEach((select) => {
         const route = select.dataset.permission as DashboardId;
         permissions[route] = select.value as Permission;
       });
-      updates[userId] = { role, department, password, isActive, permissions };
+      updates[userId] = { role, isActive, permissions };
     });
     await saveAllStaffSettings(updates);
+    loadStaff();
     setStaffNotice("Saved all staff settings.");
     setTimeout(() => setStaffNotice(null), 2500);
   };
@@ -161,7 +188,7 @@ export default function SettingsView() {
           </div>
           <div className="field">
             <label>New Password</label>
-            <input id="newPassword" type="password" />
+            <input id="newPassword" type="password" placeholder="At least 8 characters" />
           </div>
           <button className="btn primary" onClick={handleChangePassword}>
             Update Password
@@ -183,16 +210,18 @@ export default function SettingsView() {
                 <input id="newUserEmail" type="email" placeholder="name@gmail.com" />
               </div>
               <div className="field">
-                <label>Password</label>
-                <input id="newUserPassword" type="text" placeholder="Create password" />
+                <label>Initial Password</label>
+                <input id="newUserPassword" type="text" placeholder="At least 8 characters" />
               </div>
               <div className="field">
-                <label>Department</label>
-                <input id="newUserDept" defaultValue="General" />
-              </div>
-              <div className="field">
-                <label>Role Name</label>
-                <input id="newUserRole" defaultValue="General Staff" />
+                <label>Role</label>
+                <select id="newUserRole" defaultValue={ASSIGNABLE_ROLES[0]}>
+                  {ASSIGNABLE_ROLES.map((r) => (
+                    <option key={r} value={r}>
+                      {STAFF_ROLE_LABELS[r]}
+                    </option>
+                  ))}
+                </select>
               </div>
               <button className="btn primary" onClick={handleAddStaff}>
                 Create Staff
@@ -203,9 +232,6 @@ export default function SettingsView() {
               <button className="btn success" onClick={handleSaveAllStaff}>
                 Save All Staff Settings
               </button>
-              <button className="btn" onClick={() => setShowPasswords((v) => !v)}>
-                Show/Hide All Passwords
-              </button>
               {staffNotice && <span style={{ color: "var(--success)", fontWeight: 900 }}>{staffNotice}</span>}
             </div>
 
@@ -213,8 +239,7 @@ export default function SettingsView() {
               <thead>
                 <tr>
                   <th>User</th>
-                  <th>Role / Dept.</th>
-                  <th>Password</th>
+                  <th>Role</th>
                   <th>Status</th>
                   {ROUTES.map((r) => (
                     <th key={r}>{r}</th>
@@ -223,54 +248,61 @@ export default function SettingsView() {
                 </tr>
               </thead>
               <tbody ref={staffTableRef}>
-                {data.users.map((u) => (
-                  <tr data-user-row={u.id} key={u.id}>
-                    <td>
-                      <strong>{u.name}</strong>
-                      <br />
-                      <span style={{ color: "var(--muted)", fontSize: 12 }}>{u.email}</span>
-                    </td>
-                    <td>
-                      <input data-field="role" defaultValue={u.role || ""} disabled={u.id === "admin"} />
-                      <input data-field="department" style={{ marginTop: 6 }} defaultValue={u.department || ""} disabled={u.id === "admin"} />
-                    </td>
-                    <td>
-                      {u.id === "admin" ? (
-                        <span className="badge good">Protected</span>
-                      ) : (
-                        <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                          <input data-field="password" className="staff-pass" type={showPasswords ? "text" : "password"} defaultValue={u.password || ""} />
-                        </div>
-                      )}
-                    </td>
-                    <td>
-                      <select data-field="isActive" defaultValue={u.isActive !== false ? "active" : "inactive"} disabled={u.id === "admin"}>
-                        <option value="active">Active</option>
-                        <option value="inactive">Inactive</option>
-                      </select>
-                    </td>
-                    {ROUTES.map((r) => (
-                      <td key={r}>
-                        <select data-permission={r} defaultValue={u.permissions?.[r] || "none"} disabled={u.id === "admin"}>
-                          {PERMISSION_LEVELS.map((p) => (
-                            <option key={p} value={p}>
-                              {p}
-                            </option>
-                          ))}
-                        </select>
+                {(staff || []).map((u) => {
+                  const isSuperAdmin = u.role === "SUPER_ADMIN";
+                  return (
+                    <tr data-user-row={u.id} key={u.id}>
+                      <td>
+                        <strong>{u.name}</strong>
+                        <br />
+                        <span style={{ color: "var(--muted)", fontSize: 12 }}>{u.email}</span>
                       </td>
-                    ))}
-                    <td>
-                      {u.id === "admin" ? (
-                        <span className="badge good">Owner</span>
-                      ) : (
-                        <button className="btn danger" onClick={() => deleteStaffUser(u.id)}>
-                          Delete
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
+                      <td>
+                        {isSuperAdmin ? (
+                          STAFF_ROLE_LABELS[u.role]
+                        ) : (
+                          <select data-field="role" defaultValue={u.role}>
+                            {ASSIGNABLE_ROLES.map((r) => (
+                              <option key={r} value={r}>
+                                {STAFF_ROLE_LABELS[r]}
+                              </option>
+                            ))}
+                          </select>
+                        )}
+                      </td>
+                      <td>
+                        {isSuperAdmin ? (
+                          <span className="badge good">Protected</span>
+                        ) : (
+                          <select data-field="isActive" defaultValue={u.isActive !== false ? "active" : "inactive"}>
+                            <option value="active">Active</option>
+                            <option value="inactive">Inactive</option>
+                          </select>
+                        )}
+                      </td>
+                      {ROUTES.map((r) => (
+                        <td key={r}>
+                          <select data-permission={r} defaultValue={u.permissionMap?.[r] || "none"} disabled={isSuperAdmin}>
+                            {PERMISSION_LEVELS.map((p) => (
+                              <option key={p} value={p}>
+                                {p}
+                              </option>
+                            ))}
+                          </select>
+                        </td>
+                      ))}
+                      <td>
+                        {isSuperAdmin ? (
+                          <span className="badge good">Owner</span>
+                        ) : (
+                          <button className="btn danger" onClick={() => handleDeleteStaff(u.id)}>
+                            Deactivate
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
             <p style={{ color: "var(--muted)", fontWeight: 700, marginBottom: 0 }}>
@@ -279,7 +311,7 @@ export default function SettingsView() {
             </p>
           </>
         ) : (
-          <p style={{ color: "var(--muted)", fontWeight: 700 }}>Only admin can manage users and dashboard permissions.</p>
+          <p style={{ color: "var(--muted)", fontWeight: 700 }}>Only the Super Admin can manage users and dashboard permissions.</p>
         )}
       </div>
 
@@ -296,7 +328,7 @@ export default function SettingsView() {
       </div>
 
       <p style={{ color: "var(--muted)", fontSize: 12 }}>
-        Logged in as <strong>{currentUser?.name}</strong> ({currentUser?.role})
+        Logged in as <strong>{currentUser?.name}</strong> ({currentUser && STAFF_ROLE_LABELS[currentUser.role]})
       </p>
     </>
   );

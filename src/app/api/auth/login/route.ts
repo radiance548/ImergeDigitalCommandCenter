@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/server/db";
+import { getSessionUser } from "@/lib/server/auth";
 import { getSupabaseServerClient } from "@/lib/server/supabase";
 import { apiError, parseJsonBody, withErrorHandling } from "@/lib/server/apiUtils";
 import { getLoginRateLimiter, loginRateLimitKey } from "@/lib/server/rateLimit";
@@ -20,7 +20,7 @@ function getClientIp(req: Request): string {
  * rate limiting all happen on Supabase's side — this route exists to (a)
  * apply our own rate limiter on top (see src/lib/server/rateLimit.ts) and
  * (b) join the Supabase Auth identity to our `staff_users` profile row
- * (role/department/permissions) in one response.
+ * (role/permissions) in one response.
  */
 export const POST = withErrorHandling(async (req: Request) => {
   const parsed = await parseJsonBody(req, loginSchema);
@@ -44,8 +44,14 @@ export const POST = withErrorHandling(async (req: Request) => {
 
   if (error || !data.user) return apiError(401, error?.message || "Invalid email or password.");
 
-  const profile = await prisma.staffUser.findUnique({ where: { id: data.user.id } });
-  if (!profile || !profile.isActive) {
+  // Reuses getSessionUser() rather than re-querying staff_users directly,
+  // so this response gets the same isActive check and Super Admin
+  // full-permission override as every other authenticated request — one
+  // place owns "what a session looks like". Safe to call immediately
+  // after signInWithPassword: both read/write the same request-scoped
+  // cookie store (see getSupabaseServerClient), no extra round trip.
+  const user = await getSessionUser();
+  if (!user) {
     await supabase.auth.signOut();
     return apiError(401, "This account has no active staff profile. Contact an admin.");
   }
@@ -54,14 +60,5 @@ export const POST = withErrorHandling(async (req: Request) => {
   // typos don't count against the user going forward.
   await rateLimiter.reset(rateLimitKey);
 
-  return NextResponse.json({
-    user: {
-      id: profile.id,
-      name: profile.name,
-      email: profile.email,
-      role: profile.role,
-      department: profile.department,
-      permissionMap: profile.permissionMap,
-    },
-  });
+  return NextResponse.json({ user });
 });

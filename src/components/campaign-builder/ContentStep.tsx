@@ -58,8 +58,11 @@ export default function ContentStep({ draft, onChange, readOnly }: ContentStepPr
           />
         </div>
         <p style={{ color: "var(--muted)", fontSize: 12 }}>
-          Merge tags supported: <code>{"{{first_name}}"}</code>, <code>{"{{last_name}}"}</code>,{" "}
-          <code>{"{{email}}"}</code>, plus any custom contact attribute.
+          Resend fills these in per recipient at send time — triple braces, <code>contact.</code> prefix, optional{" "}
+          <code>|fallback</code>: <code>{"{{{contact.first_name|there}}}"}</code>,{" "}
+          <code>{"{{{contact.last_name}}}"}</code>, <code>{"{{{contact.email}}}"}</code>, or any custom contact
+          property. Add <code>{"{{{RESEND_UNSUBSCRIBE_URL}}}"}</code> somewhere in the body too — it only resolves
+          once an audience is attached in the next step.
         </p>
       </div>
       <div className="panel-card span-6">

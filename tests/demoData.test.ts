@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, test } from "./harness";
-import { generateDemoData, SEED_USERS } from "../src/lib/demoData";
+import { generateDemoData } from "../src/lib/demoData";
 
 describe("demoData: structural integrity", () => {
   test("generates non-empty collections for every dashboard", () => {
@@ -13,7 +13,6 @@ describe("demoData: structural integrity", () => {
     assert.ok(data.deals.length > 0, "deals");
     assert.ok(data.team.length > 0, "team");
     assert.ok(data.customers.length > 0, "customers");
-    assert.ok(data.users.length > 0, "users");
   });
 
   test("every time entry references a client that actually exists", () => {
@@ -90,32 +89,5 @@ describe("demoData: structural integrity", () => {
       description: "test",
     });
     assert.notEqual(second.transactions.length, first.transactions.length);
-  });
-});
-
-describe("demoData: seed users", () => {
-  test("every seed user has a full 7-key permission map", () => {
-    const dashboards = ["income", "marketing", "health", "clients", "pipeline", "ltv", "settings"];
-    for (const user of SEED_USERS) {
-      for (const dash of dashboards) {
-        assert.ok(
-          dash in user.permissions,
-          `${user.email} is missing a permission entry for "${dash}"`
-        );
-      }
-    }
-  });
-
-  test("emails are unique across seed users", () => {
-    const emails = SEED_USERS.map((u) => u.email.toLowerCase());
-    assert.equal(new Set(emails).size, emails.length);
-  });
-
-  test("the admin account has full access to every dashboard", () => {
-    const admin = SEED_USERS.find((u) => u.id === "admin");
-    assert.ok(admin);
-    for (const level of Object.values(admin!.permissions)) {
-      assert.equal(level, "full");
-    }
   });
 });

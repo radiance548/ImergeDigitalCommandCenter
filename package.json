@@ -13,6 +13,7 @@
     "db:deploy": "prisma migrate deploy",
     "db:studio": "prisma studio",
     "db:seed": "tsx --env-file-if-exists=.env.local prisma/seed.ts",
+    "bootstrap:superadmin": "tsx --env-file-if-exists=.env.local scripts/bootstrapSuperAdmin.ts",
     "test": "tsx tests/index.ts"
   },
   "dependencies": {

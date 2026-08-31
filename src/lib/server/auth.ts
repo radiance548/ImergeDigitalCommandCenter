@@ -5,22 +5,41 @@ import { permissionRank } from "@/lib/server/authTokens";
 
 export { permissionRank } from "@/lib/server/authTokens";
 
+export type StaffRole = "SUPER_ADMIN" | "CEO" | "SOCIAL_MEDIA_AD_MANAGER";
+
 export interface SessionUser {
   id: string;
   name: string;
   email: string;
-  role: string;
+  role: StaffRole;
   isActive: boolean;
   permissionMap: Record<string, string>;
 }
 
+const FULL_PERMISSION_MAP: Record<string, string> = {
+  income: "full",
+  marketing: "full",
+  health: "full",
+  clients: "full",
+  pipeline: "full",
+  ltv: "full",
+  settings: "full",
+};
+
 /**
  * Resolves the current Supabase Auth session (from the request's cookies,
  * via getSupabaseServerClient) into our own StaffUser profile row —
- * identity comes from Supabase, permissions/role/department come from our
+ * identity comes from Supabase, permissions/role come from our
  * `staff_users` table, joined on a matching id (see prisma/schema.prisma
  * and the migration notes in README's Auth section for how these two
  * stay in sync).
+ *
+ * The Super Admin's permissionMap is always overridden to full access
+ * here, regardless of what's actually stored — defense-in-depth so every
+ * requirePermission()/isAdmin() check anywhere in the app is automatically
+ * correct even if the stored row ever drifted. See also the "can't target
+ * a Super Admin row" guard in the staff API routes, which covers the
+ * write side of the same invariant.
  */
 export async function getSessionUser(): Promise<SessionUser | null> {
   const supabase = await getSupabaseServerClient();
@@ -32,14 +51,27 @@ export async function getSessionUser(): Promise<SessionUser | null> {
   const profile = await prisma.staffUser.findUnique({ where: { id: authUser.id } });
   if (!profile || !profile.isActive) return null;
 
+  const isSuperAdmin = profile.role === "SUPER_ADMIN";
+
   return {
     id: profile.id,
     name: profile.name,
     email: profile.email,
-    role: profile.role,
+    role: profile.role as StaffRole,
     isActive: profile.isActive,
-    permissionMap: (profile.permissionMap as Record<string, string>) || {},
+    permissionMap: isSuperAdmin ? FULL_PERMISSION_MAP : (profile.permissionMap as Record<string, string>) || {},
   };
+}
+
+/**
+ * Enforces that the current request has a signed-in Super Admin session.
+ * Throws 401/403 via ApiHttpError, same convention as requirePermission.
+ */
+export async function requireSuperAdmin(): Promise<SessionUser> {
+  const user = await getSessionUser();
+  if (!user) throw new ApiHttpError(401, "Not signed in");
+  if (user.role !== "SUPER_ADMIN") throw new ApiHttpError(403, "Super Admin access required");
+  return user;
 }
 
 /**
