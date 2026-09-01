@@ -14,7 +14,11 @@ function mockFetch(responses: Record<string, unknown>) {
 
   globalThis.fetch = (async (url: string, init?: RequestInit) => {
     const method = init?.method || "GET";
-    calls.push({ url: String(url), method, body: init?.body ? JSON.parse(String(init.body)) : undefined });
+    calls.push({
+      url: String(url),
+      method,
+      body: typeof init?.body === "string" ? JSON.parse(init.body) : init?.body,
+    });
 
     const matchedKey = Object.keys(responses).find((k) => {
       const [m, pattern] = k.split(" ");
@@ -43,8 +47,10 @@ describe("mail: ResendBroadcastProvider", () => {
     restore();
   });
 
-  test("upsertContacts posts one request per contact to /audiences/{id}/contacts", async () => {
-    const { calls, restore } = mockFetch({ "POST https://api.resend.com/audiences/aud_123/contacts": { id: "c_1" } });
+  test("upsertContacts posts a single bulk CSV import instead of one request per contact", async () => {
+    const { calls, restore } = mockFetch({
+      "POST https://api.resend.com/contacts/imports": { object: "contact_import", id: "imp_1" },
+    });
     const provider = new ResendBroadcastProvider("re_fake_key");
 
     await provider.upsertContacts("aud_123", [
@@ -52,9 +58,27 @@ describe("mail: ResendBroadcastProvider", () => {
       { email: "b@example.com" },
     ]);
 
-    assert.equal(calls.length, 2);
-    assert.equal((calls[0].body as { email: string }).email, "a@example.com");
-    assert.equal((calls[0].body as { first_name?: string }).first_name, "Ada");
+    assert.equal(calls.length, 1);
+    const form = calls[0].body as FormData;
+    assert.equal(form.get("on_conflict"), "upsert");
+    assert.deepEqual(JSON.parse(String(form.get("segments"))), [{ id: "aud_123" }]);
+    assert.deepEqual(JSON.parse(String(form.get("column_map"))), {
+      email: "email",
+      first_name: "first_name",
+      last_name: "last_name",
+    });
+    const csv = await (form.get("file") as Blob).text();
+    assert.equal(csv, "email,first_name,last_name\na@example.com,Ada,\nb@example.com,,");
+    restore();
+  });
+
+  test("upsertContacts is a no-op for an empty contact list", async () => {
+    const { calls, restore } = mockFetch({});
+    const provider = new ResendBroadcastProvider("re_fake_key");
+
+    await provider.upsertContacts("aud_123", []);
+
+    assert.equal(calls.length, 0);
     restore();
   });
 
