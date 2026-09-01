@@ -22,6 +22,6 @@ export const POST = withErrorHandling(async (req: Request, { params }: Params) =
   const parsed = await parseJsonBody(req, importContactsSchema);
   if ("error" in parsed) return parsed.error;
 
-  const contacts = await audienceService.importContacts(params.id, parsed.data, user.id);
-  return NextResponse.json({ imported: contacts.length, contacts });
+  const imported = await audienceService.importContacts(params.id, parsed.data, user.id);
+  return NextResponse.json({ imported });
 });

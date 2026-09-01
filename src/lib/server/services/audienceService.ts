@@ -1,8 +1,9 @@
+import { randomUUID } from "node:crypto";
 import { prisma } from "@/lib/server/db";
 import { withRLS, type Db } from "@/lib/server/withRLS";
 import { getBroadcastProvider } from "@/lib/server/mail/broadcastIndex";
 import type { createAudienceSchema, importContactsSchema } from "@/lib/server/validation";
-import type { Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import type { z } from "zod";
 
 export const audienceService = {
@@ -39,34 +40,48 @@ export const audienceService = {
     return db.audience.delete({ where: { id } });
   },
 
-  /** Same network-outside-transaction shape as `create` — see its comment. */
+  /**
+   * Same network-outside-transaction shape as `create` — see its comment.
+   *
+   * Upserts as ONE multi-row `INSERT ... ON CONFLICT` statement rather than
+   * one `upsert()` round trip per contact — with thousands of contacts, N
+   * sequential round trips on the transaction's single connection easily
+   * blows past the interactive transaction's default 5s timeout, even
+   * though each individual query is fast on its own.
+   *
+   * That round-trip fix alone isn't sufficient at the top of the range,
+   * though: measured directly against the real DB, a single 5000-row
+   * VALUES/ON CONFLICT statement takes ~6-7s of genuine server-side work
+   * (row-level RLS check + unique-index maintenance × 5000, plus
+   * transmitting ~30k bound parameters), which is real work, not a hung
+   * connection — so this passes an explicit longer timeout rather than
+   * papering over it with more chunking.
+   */
   async importContacts(audienceId: string, input: z.infer<typeof importContactsSchema>, userId: string) {
-    const { audience, results } = await withRLS(userId, async (tx) => {
-      const audience = await tx.audience.findUnique({ where: { id: audienceId } });
-      if (!audience) throw new Error(`Audience ${audienceId} not found`);
+    const { audience, count } = await withRLS(
+      userId,
+      async (tx) => {
+        const audience = await tx.audience.findUnique({ where: { id: audienceId } });
+        if (!audience) throw new Error(`Audience ${audienceId} not found`);
 
-      const results = await Promise.all(
-        input.contacts.map((c) =>
-          tx.audienceContact.upsert({
-            where: { audienceId_email: { audienceId, email: c.email.toLowerCase() } },
-            create: {
-              audienceId,
-              email: c.email.toLowerCase(),
-              firstName: c.firstName,
-              lastName: c.lastName,
-              attributes: (c.attributes ?? {}) as Prisma.InputJsonValue,
-            },
-            update: {
-              firstName: c.firstName,
-              lastName: c.lastName,
-              attributes: (c.attributes ?? {}) as Prisma.InputJsonValue,
-            },
-          })
-        )
-      );
+        const rows = input.contacts.map(
+          (c) =>
+            Prisma.sql`(${randomUUID()}, ${audienceId}, ${c.email.toLowerCase()}, ${c.firstName ?? null}, ${c.lastName ?? null}, ${JSON.stringify(c.attributes ?? {})}::jsonb)`
+        );
 
-      return { audience, results };
-    });
+        const count = await tx.$executeRaw`
+        INSERT INTO "audience_contacts" (id, "audienceId", email, "firstName", "lastName", attributes)
+        VALUES ${Prisma.join(rows)}
+        ON CONFLICT ("audienceId", email) DO UPDATE SET
+          "firstName" = excluded."firstName",
+          "lastName" = excluded."lastName",
+          attributes = excluded.attributes
+      `;
+
+        return { audience, count };
+      },
+      { timeout: 30_000, maxWait: 10_000 }
+    );
 
     // Push into Resend's own audience so Broadcasts sent against it reach
     // these contacts. If this fails, contacts are still stored locally —
@@ -87,7 +102,7 @@ export const audienceService = {
       }
     }
 
-    return results;
+    return count;
   },
 
   contactCount(audienceId: string, db: Db = prisma) {

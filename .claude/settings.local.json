@@ -26,7 +26,8 @@
       "Read(//c/Users/radia/AppData/Local/Temp/claude/c--Users-radia-Imerge-Digital-Command-Center/464515e7-e37c-4f78-b82c-21a84e925944/scratchpad/logowork/**)",
       "Bash(cp \"C:/Users/radia/Downloads/logo-icon.png\" \"/c/Users/radia/Imerge Digital Command Center/public/logo-icon.png\" && ls -la \"/c/Users/radia/Imerge Digital Command Center/public/logo-icon.png\")",
       "Bash(cat)",
-      "Bash(node isolate-favicon.js)"
+      "Bash(node isolate-favicon.js)",
+      "Bash(awk -F= '/^RESEND_API_KEY=/{print length\\($0\\)-length\\(\"RESEND_API_KEY=\"\\)}' .env)"
     ],
     "additionalDirectories": [
       "C:\\Users\\radia\\Downloads"

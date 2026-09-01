@@ -3,6 +3,11 @@ import type { BroadcastProvider, CreateOrUpdateBroadcastInput } from "./broadcas
 
 const RESEND_API_BASE = "https://api.resend.com";
 
+/** RFC 4180 field escaping — quotes a value only if it needs it. */
+function csvField(value: string): string {
+  return /[",\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value;
+}
+
 /**
  * Resend Broadcasts (https://resend.com/docs/dashboard/broadcasts/introduction)
  * — Resend's own audience-targeted send: it owns the queue, throttling,
@@ -13,7 +18,7 @@ const RESEND_API_BASE = "https://api.resend.com";
  * SDK's broadcast method surface, which wasn't fully confirmed at the
  * time this was written) against the documented endpoints:
  *   POST   /audiences
- *   POST   /audiences/{id}/contacts
+ *   POST   /contacts/imports          (bulk upsert — see upsertContacts)
  *   POST   /broadcasts
  *   PATCH  /broadcasts/{id}
  *   POST   /broadcasts/{id}/send      body: { scheduled_at?: string }
@@ -59,17 +64,43 @@ export class ResendBroadcastProvider implements BroadcastProvider {
     return { externalId: result.id };
   }
 
+  /**
+   * Bulk-upserts via Resend's Contacts Import API (POST /contacts/imports)
+   * instead of one POST per contact — with a few thousand contacts, the old
+   * per-contact loop could take minutes and risked tripping Resend's rate
+   * limit (10 req/s/team). This is one request no matter how many contacts,
+   * at the cost of being async: Resend processes the CSV in the background
+   * and this only confirms the import was *accepted*, not that every
+   * contact has landed yet. That's an acceptable trade here since the
+   * caller (audienceService.importContacts) already treats this sync as
+   * best-effort and fire-and-forget.
+   */
   async upsertContacts(audienceExternalId: string, contacts: AudienceSyncContact[]): Promise<void> {
-    for (const contact of contacts) {
-      await this.request(`/audiences/${audienceExternalId}/contacts`, {
-        method: "POST",
-        body: JSON.stringify({
-          email: contact.email,
-          first_name: contact.firstName,
-          last_name: contact.lastName,
-          unsubscribed: false,
-        }),
-      });
+    if (!contacts.length) return;
+
+    const csv = [
+      "email,first_name,last_name",
+      ...contacts.map((c) => [c.email, c.firstName ?? "", c.lastName ?? ""].map(csvField).join(",")),
+    ].join("\n");
+
+    const form = new FormData();
+    form.set("file", new Blob([csv], { type: "text/csv" }), "contacts.csv");
+    form.set("column_map", JSON.stringify({ email: "email", first_name: "first_name", last_name: "last_name" }));
+    form.set("on_conflict", "upsert");
+    form.set("segments", JSON.stringify([{ id: audienceExternalId }]));
+
+    // Not routed through `request()` — that helper always sets
+    // Content-Type: application/json, but a multipart body needs fetch to
+    // compute its own boundary-bearing Content-Type instead.
+    const res = await fetch(`${RESEND_API_BASE}/contacts/imports`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${this.apiKey}` },
+      body: form,
+    });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      const message = (json as { message?: string })?.message || `Resend API error (${res.status})`;
+      throw new Error(message);
     }
   }
 
