@@ -5,6 +5,7 @@ import "./demoData.test";
 import "./authTokens.test";
 import "./mailProviders.test";
 import "./resendBroadcastProvider.test";
+import "./contactFileParser.test";
 import "./campaignAnalytics.test";
 import "./rateLimit.test";
 import "./localStorageRepository.test";

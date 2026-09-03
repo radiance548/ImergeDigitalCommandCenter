@@ -27,10 +27,22 @@
       "Bash(cp \"C:/Users/radia/Downloads/logo-icon.png\" \"/c/Users/radia/Imerge Digital Command Center/public/logo-icon.png\" && ls -la \"/c/Users/radia/Imerge Digital Command Center/public/logo-icon.png\")",
       "Bash(cat)",
       "Bash(node isolate-favicon.js)",
-      "Bash(awk -F= '/^RESEND_API_KEY=/{print length\\($0\\)-length\\(\"RESEND_API_KEY=\"\\)}' .env)"
+      "Bash(awk -F= '/^RESEND_API_KEY=/{print length\\($0\\)-length\\(\"RESEND_API_KEY=\"\\)}' .env)",
+      "Bash(cd /c/Users/radia/AppData/Local/Temp/xlsx_inspect && ls extracted/xl/worksheets && echo --- && wc -c extracted/xl/sharedStrings.xml extracted/xl/worksheets/*.xml)",
+      "Read(//c/Users/radia/AppData/Local/Temp/xlsx_inspect/**)",
+      "Bash(head -c 400 /c/Users/radia/AppData/Local/Temp/xlsx_inspect/extracted/xl/sharedStrings.xml)",
+      "Read(//c/Users/radia/AppData/Local/Temp/xlsx_inspect/extracted/xl/**)",
+      "Bash(npm install *)",
+      "Bash(npm audit *)",
+      "Bash(npm uninstall *)",
+      "Bash(npm ls *)",
+      "Bash(npm view *)",
+      "Bash(echo \"---exit $?\")",
+      "Bash(mkdir -p \"c:\\\\Users\\\\radia\\\\Imerge Digital Command Center\\\\src\\\\app\\\\api\\\\audiences\\\\[id]\\\\contacts\\\\import-file\")"
     ],
     "additionalDirectories": [
-      "C:\\Users\\radia\\Downloads"
+      "C:\\Users\\radia\\Downloads",
+      "c:\\Users\\radia\\Imerge Digital Command Center\\src\\app\\api\\audiences\\[id]\\contacts"
     ]
   }
 }

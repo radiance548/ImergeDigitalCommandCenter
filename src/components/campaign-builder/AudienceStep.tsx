@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { campaignApi, type Audience } from "@/lib/campaignApi";
 
 interface AudienceStepProps {
@@ -16,7 +16,9 @@ export default function AudienceStep({ selectedAudienceId, onSelect, readOnly }:
 
   const [newName, setNewName] = useState("");
   const [pastedEmails, setPastedEmails] = useState("");
+  const [file, setFile] = useState<File | null>(null);
   const [creating, setCreating] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const refresh = () => {
     campaignApi.audiences
@@ -56,12 +58,21 @@ export default function AudienceStep({ selectedAudienceId, onSelect, readOnly }:
       for (let i = 0; i < contacts.length; i += IMPORT_CHUNK_SIZE) {
         await campaignApi.audiences.importContacts(audience.id, contacts.slice(i, i + IMPORT_CHUNK_SIZE));
       }
+
+      let fileNotice = "";
+      if (file) {
+        const fileResult = await campaignApi.audiences.importContactsFile(audience.id, file);
+        fileNotice = ` + ${fileResult.imported} from "${file.name}"${fileResult.skipped ? ` (${fileResult.skipped} skipped — no valid email)` : ""}`;
+      }
+
       setNewName("");
       setPastedEmails("");
-      setNotice(`Created "${audience.name}" with ${contacts.length} contact(s).`);
+      setFile(null);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      setNotice(`Created "${audience.name}" with ${contacts.length} pasted contact(s)${fileNotice}.`);
       onSelect(audience.id);
       refresh();
-      setTimeout(() => setNotice(null), 3000);
+      setTimeout(() => setNotice(null), 5000);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not create audience");
     } finally {
@@ -115,6 +126,19 @@ export default function AudienceStep({ selectedAudienceId, onSelect, readOnly }:
             <span style={{ color: "var(--muted)", fontSize: 12 }}>
               First/last name are optional but drive personalization in your email content — a contact added with
               just an email will always fall back to the default greeting.
+            </span>
+          </div>
+          <div className="field" style={{ marginBottom: 12 }}>
+            <label>Or upload a spreadsheet (.xlsx, .xls, .csv)</label>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".xlsx,.xls,.csv"
+              onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+            />
+            <span style={{ color: "var(--muted)", fontSize: 12 }}>
+              Needs a header row with an Email column, a Name column (or separate First Name/Last Name columns), and
+              optionally Phone. Combined with any pasted contacts above.
             </span>
           </div>
           <button className="btn primary" disabled={creating} onClick={createAudience}>
