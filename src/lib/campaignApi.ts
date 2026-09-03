@@ -112,6 +112,17 @@ export const campaignApi = {
         method: "POST",
         body: JSON.stringify({ contacts }),
       }),
+    // Not routed through request() — that helper always sets Content-Type:
+    // application/json, but a multipart body needs the browser to compute
+    // its own boundary-bearing Content-Type instead.
+    importContactsFile: async (id: string, file: File) => {
+      const form = new FormData();
+      form.set("file", file);
+      const res = await fetch(`/api/audiences/${id}/contacts/import-file`, { method: "POST", body: form });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error || `Request failed with status ${res.status}`);
+      return body as { imported: number; totalRows: number; skipped: number };
+    },
   },
 
   mailProviders: () => request<{ providers: MailProviderInfo[] }>("/api/mail/providers"),

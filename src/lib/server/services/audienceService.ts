@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { prisma } from "@/lib/server/db";
 import { withRLS, type Db } from "@/lib/server/withRLS";
 import { getBroadcastProvider } from "@/lib/server/mail/broadcastIndex";
+import { dedupeContactsByEmail } from "@/lib/server/contactFileParser";
 import type { createAudienceSchema, importContactsSchema } from "@/lib/server/validation";
 import { Prisma } from "@prisma/client";
 import type { z } from "zod";
@@ -64,7 +65,7 @@ export const audienceService = {
         const audience = await tx.audience.findUnique({ where: { id: audienceId } });
         if (!audience) throw new Error(`Audience ${audienceId} not found`);
 
-        const rows = input.contacts.map(
+        const rows = dedupeContactsByEmail(input.contacts).map(
           (c) =>
             Prisma.sql`(${randomUUID()}, ${audienceId}, ${c.email.toLowerCase()}, ${c.firstName ?? null}, ${c.lastName ?? null}, ${JSON.stringify(c.attributes ?? {})}::jsonb)`
         );
