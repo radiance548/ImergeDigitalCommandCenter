@@ -342,6 +342,7 @@ th { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spa
 }
 
 .file-drop {
+  display: block; width: 100%; box-sizing: border-box; cursor: pointer;
   border: 2px dashed var(--border); border-radius: 14px; padding: 16px; text-align: center;
   background: var(--surface-2); transition: 0.15s ease;
 }
