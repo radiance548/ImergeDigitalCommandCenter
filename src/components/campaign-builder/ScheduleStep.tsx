@@ -41,8 +41,8 @@ export default function ScheduleStep({ campaign, onCampaignUpdate, readOnly }: S
       {!campaign.fromEmail && (
         <div className="alert">
           Set a From email in the Content step first — it must be on a domain you&apos;ve verified in{" "}
-          <a href="https://resend.com/domains" target="_blank" rel="noreferrer">
-            Resend
+          <a href="https://app.useplunk.com/" target="_blank" rel="noreferrer">
+            Plunk
           </a>
           .
         </div>
@@ -55,7 +55,7 @@ export default function ScheduleStep({ campaign, onCampaignUpdate, readOnly }: S
           <label>Sends via</label>
           <div style={{ paddingTop: 8, fontWeight: 800 }}>
             <span className="badge">
-              <i className="fa-solid fa-paper-plane" /> Resend Broadcasts
+              <i className="fa-solid fa-paper-plane" /> Plunk Campaigns
             </span>
           </div>
         </div>
@@ -94,7 +94,7 @@ export default function ScheduleStep({ campaign, onCampaignUpdate, readOnly }: S
               onClick={() =>
                 runAction(
                   () => campaignApi.schedule(campaign.id, new Date(scheduledAt).toISOString()).then((r) => r.campaign),
-                  "Campaign scheduled with Resend."
+                  "Campaign scheduled with Plunk."
                 )
               }
             >
@@ -108,7 +108,7 @@ export default function ScheduleStep({ campaign, onCampaignUpdate, readOnly }: S
         <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
           <p style={{ margin: 0 }}>
             Scheduled for <strong>{campaign.scheduledAt && new Date(campaign.scheduledAt).toLocaleString()}</strong> —
-            Resend will send it automatically.
+            Plunk will send it automatically.
           </p>
           <button
             className="btn danger"
@@ -124,14 +124,14 @@ export default function ScheduleStep({ campaign, onCampaignUpdate, readOnly }: S
 
       {campaign.status === "sent" && (
         <p style={{ color: "var(--muted)", fontWeight: 700 }}>
-          Handed off to Resend {campaign.sentAt ? `at ${new Date(campaign.sentAt).toLocaleString()}` : ""}. See the
-          Analytics step for delivery results as they come in via webhook.
+          Handed off to Plunk {campaign.sentAt ? `at ${new Date(campaign.sentAt).toLocaleString()}` : ""}. See the
+          Analytics step for delivery results.
         </p>
       )}
 
       {campaign.status === "failed" && (
         <p style={{ color: "var(--danger)", fontWeight: 700 }}>
-          This campaign failed to send. Check your Resend API key and audience sync, then try again.
+          This campaign failed to send. Check your Plunk API key and audience sync, then try again.
         </p>
       )}
     </div>

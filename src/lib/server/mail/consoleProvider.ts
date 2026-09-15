@@ -3,7 +3,7 @@ import type { MailProvider, NormalizedWebhookEvent, SendEmailInput, SendEmailRes
 /**
  * Logs emails to the console instead of sending them. This is the default
  * provider so the app runs end-to-end (including the campaign builder)
- * with zero external accounts configured. Swap MAIL_PROVIDER to "resend"
+ * with zero external accounts configured. Swap MAIL_PROVIDER to "plunk"
  * or "loops" once you have API keys.
  */
 export class ConsoleMailProvider implements MailProvider {

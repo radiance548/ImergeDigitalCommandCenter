@@ -17,6 +17,6 @@ export const GET = withErrorHandling(async (req: Request, { params }: Params) =>
 
 export const DELETE = withErrorHandling(async (req: Request, { params }: Params) => {
   const user = await requirePermission("marketing", "edit");
-  await withRLS(user.id, (tx) => audienceService.remove(params.id, tx));
+  await audienceService.remove(params.id, user.id);
   return NextResponse.json({ ok: true });
 });

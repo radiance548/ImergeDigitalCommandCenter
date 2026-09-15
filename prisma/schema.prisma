@@ -10,8 +10,8 @@
 //   2. The Campaign Builder subsystem (EmailTemplate, Audience,
 //      Contact, EmailCampaign, CampaignRecipient, CampaignEvent,
 //      EmailCampaign) — the part this change set is primarily adding.
-//      Campaign scheduling/dispatch is delegated to Resend's own
-//      Broadcast API rather than a locally-run queue — see
+//      Campaign scheduling/dispatch is delegated to Plunk's own
+//      Campaigns API rather than a locally-run queue — see
 //      src/lib/server/mail/broadcastProvider.ts.
 // ============================================================
 
@@ -244,11 +244,11 @@ model EmailTemplate {
   id          String   @id @default(cuid())
   name        String
   description String?
-  /// Raw HTML with Resend's own merge-tag syntax, resolved by Resend at
-  /// send time — not by this app. Triple braces, "contact." prefix,
-  /// optional "|fallback": {{{contact.first_name|there}}}. Also supports
-  /// {{{RESEND_UNSUBSCRIBE_URL}}} (only resolves once an audience is
-  /// attached to the broadcast).
+  /// Raw HTML with Plunk's own Liquid-based merge-tag syntax, resolved by
+  /// Plunk at send time — not by this app. Double braces, optional
+  /// "?? 'fallback'": {{firstName ?? 'there'}}. Also supports the
+  /// built-in {{unsubscribeUrl}} (only resolves once an audience is
+  /// attached to the campaign).
   html        String
   thumbnailUrl String?
   isSystem    Boolean  @default(false) // seeded/starter templates vs user-created
@@ -264,7 +264,7 @@ model Audience {
   id          String   @id @default(cuid())
   name        String
   description String?
-  /// Resend Audience id, once synced — see src/lib/server/mail/broadcastProvider.ts
+  /// Plunk segment id, once synced — see src/lib/server/mail/broadcastProvider.ts
   externalId  String?  @unique
   createdAt   DateTime @default(now())
 
@@ -323,9 +323,9 @@ model EmailCampaign {
   sentAt        DateTime?
   /// Which MailProvider implementation this campaign is associated with
   /// (kept for the send-a-single-test-email use case / future providers).
-  provider      String         @default("resend")
-  /// Resend Broadcast id, once created — see
-  /// src/lib/server/mail/broadcastProvider.ts. Resend owns the actual
+  provider      String         @default("plunk")
+  /// Plunk campaign id, once created — see
+  /// src/lib/server/mail/broadcastProvider.ts. Plunk owns the actual
   /// send queue/scheduling/throttling once this is set and sent.
   externalBroadcastId String?  @unique
 

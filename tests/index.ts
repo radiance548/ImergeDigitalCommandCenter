@@ -4,7 +4,7 @@ import "./exportUtils.test";
 import "./demoData.test";
 import "./authTokens.test";
 import "./mailProviders.test";
-import "./resendBroadcastProvider.test";
+import "./plunkBroadcastProvider.test";
 import "./contactFileParser.test";
 import "./campaignAnalytics.test";
 import "./rateLimit.test";

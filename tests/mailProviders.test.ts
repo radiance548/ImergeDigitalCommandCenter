@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import crypto from "node:crypto";
 import { describe, test } from "./harness";
 import { ConsoleMailProvider } from "../src/lib/server/mail/consoleProvider";
-import { ResendMailProvider } from "../src/lib/server/mail/resendProvider";
+import { PlunkMailProvider } from "../src/lib/server/mail/plunkProvider";
 import { LoopsMailProvider } from "../src/lib/server/mail/loopsProvider";
 
 describe("mail: ConsoleMailProvider", () => {
@@ -24,67 +24,76 @@ describe("mail: ConsoleMailProvider", () => {
   });
 });
 
-describe("mail: ResendMailProvider webhook parsing", () => {
+describe("mail: PlunkMailProvider webhook parsing", () => {
   test("maps a known event type without a configured secret (dev/testing mode)", async () => {
-    delete process.env.RESEND_WEBHOOK_SECRET;
-    const provider = new ResendMailProvider("re_fake_key_for_tests");
+    delete process.env.PLUNK_WEBHOOK_SECRET;
+    const provider = new PlunkMailProvider("sk_fake_key_for_tests");
     const payload = {
-      type: "email.delivered",
-      created_at: "2026-01-01T00:00:00Z",
-      data: { email_id: "msg_123", to: ["recipient@example.com"] },
+      event: { name: "email.delivery" },
+      contact: { email: "recipient@example.com" },
     };
     const events = await provider.parseWebhookEvents(payload, new Headers());
     assert.equal(events.length, 1);
     assert.equal(events[0].type, "delivered");
-    assert.equal(events[0].providerMessageId, "msg_123");
     assert.equal(events[0].email, "recipient@example.com");
   });
 
   test("extracts the clicked URL from a click event", async () => {
-    delete process.env.RESEND_WEBHOOK_SECRET;
-    const provider = new ResendMailProvider("re_fake_key_for_tests");
+    delete process.env.PLUNK_WEBHOOK_SECRET;
+    const provider = new PlunkMailProvider("sk_fake_key_for_tests");
     const payload = {
-      type: "email.clicked",
-      data: { email_id: "msg_456", to: ["a@example.com"], click: { link: "https://example.com/offer" } },
+      event: { name: "email.click", url: "https://example.com/offer" },
+      contact: { email: "a@example.com" },
     };
     const events = await provider.parseWebhookEvents(payload, new Headers());
     assert.equal(events[0].url, "https://example.com/offer");
   });
 
-  test("extracts broadcast_id when present, for correlating a broadcast send back to our campaign", async () => {
-    delete process.env.RESEND_WEBHOOK_SECRET;
-    const provider = new ResendMailProvider("re_fake_key_for_tests");
-    const payload = {
-      type: "email.delivered",
-      data: { email_id: "msg_789", to: ["a@example.com"], broadcast_id: "brd_abc123" },
-    };
+  test("maps contact.unsubscribed to our normalized 'unsubscribed' type", async () => {
+    delete process.env.PLUNK_WEBHOOK_SECRET;
+    const provider = new PlunkMailProvider("sk_fake_key_for_tests");
+    const payload = { event: { name: "contact.unsubscribed" }, contact: { email: "a@example.com" } };
     const events = await provider.parseWebhookEvents(payload, new Headers());
-    assert.equal(events[0].broadcastId, "brd_abc123");
+    assert.equal(events[0].type, "unsubscribed");
   });
 
-  test("broadcastId is undefined for a regular (non-broadcast) transactional send", async () => {
-    delete process.env.RESEND_WEBHOOK_SECRET;
-    const provider = new ResendMailProvider("re_fake_key_for_tests");
-    const payload = { type: "email.delivered", data: { email_id: "msg_789", to: ["a@example.com"] } };
-    const events = await provider.parseWebhookEvents(payload, new Headers());
-    assert.equal(events[0].broadcastId, undefined);
-  });
-
-  test("returns an empty array for an unrecognized event type", async () => {
-    delete process.env.RESEND_WEBHOOK_SECRET;
-    const provider = new ResendMailProvider("re_fake_key_for_tests");
-    const events = await provider.parseWebhookEvents({ type: "email.something_new", data: {} }, new Headers());
+  test("returns an empty array for an unrecognized event name", async () => {
+    delete process.env.PLUNK_WEBHOOK_SECRET;
+    const provider = new PlunkMailProvider("sk_fake_key_for_tests");
+    const events = await provider.parseWebhookEvents(
+      { event: { name: "email.something_new" }, contact: { email: "a@example.com" } },
+      new Headers()
+    );
     assert.deepEqual(events, []);
   });
 
-  test("rejects the request when a secret IS configured but signature headers are missing", async () => {
-    process.env.RESEND_WEBHOOK_SECRET = "whsec_dGVzdHNlY3JldA==";
-    const provider = new ResendMailProvider("re_fake_key_for_tests");
-    await assert.rejects(
-      () => provider.parseWebhookEvents({ type: "email.delivered", data: {} }, new Headers()),
-      /svix/i
+  test("returns an empty array when the contact email is missing", async () => {
+    delete process.env.PLUNK_WEBHOOK_SECRET;
+    const provider = new PlunkMailProvider("sk_fake_key_for_tests");
+    const events = await provider.parseWebhookEvents({ event: { name: "email.delivery" } }, new Headers());
+    assert.deepEqual(events, []);
+  });
+
+  test("accepts a correctly-configured shared-secret Authorization header", async () => {
+    process.env.PLUNK_WEBHOOK_SECRET = "test-shared-secret";
+    const provider = new PlunkMailProvider("sk_fake_key_for_tests");
+    const headers = new Headers({ authorization: "Bearer test-shared-secret" });
+    const events = await provider.parseWebhookEvents(
+      { event: { name: "email.delivery" }, contact: { email: "a@example.com" } },
+      headers
     );
-    delete process.env.RESEND_WEBHOOK_SECRET;
+    assert.equal(events.length, 1);
+    delete process.env.PLUNK_WEBHOOK_SECRET;
+  });
+
+  test("rejects the request when a secret IS configured but the header is missing or wrong", async () => {
+    process.env.PLUNK_WEBHOOK_SECRET = "test-shared-secret";
+    const provider = new PlunkMailProvider("sk_fake_key_for_tests");
+    await assert.rejects(
+      () => provider.parseWebhookEvents({ event: { name: "email.delivery" }, contact: {} }, new Headers()),
+      /shared secret/i
+    );
+    delete process.env.PLUNK_WEBHOOK_SECRET;
   });
 });
 

@@ -107,6 +107,7 @@ export const campaignApi = {
     get: (id: string) => request<{ audience: Audience & { contacts: AudienceContact[] } }>(`/api/audiences/${id}`),
     create: (input: { name: string; description?: string }) =>
       request<{ audience: Audience }>("/api/audiences", { method: "POST", body: JSON.stringify(input) }),
+    remove: (id: string) => request<{ ok: boolean }>(`/api/audiences/${id}`, { method: "DELETE" }),
     importContacts: (id: string, contacts: { email: string; firstName?: string; lastName?: string }[]) =>
       request<{ imported: number }>(`/api/audiences/${id}/contacts`, {
         method: "POST",

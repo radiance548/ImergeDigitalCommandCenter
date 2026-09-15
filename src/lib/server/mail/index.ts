@@ -1,5 +1,5 @@
 import { ConsoleMailProvider } from "./consoleProvider";
-import { ResendMailProvider } from "./resendProvider";
+import { PlunkMailProvider } from "./plunkProvider";
 import { LoopsMailProvider } from "./loopsProvider";
 import { SmtpMailProvider } from "./smtpProvider";
 import type { MailProvider } from "./types";
@@ -11,10 +11,10 @@ const registry = new Map<string, MailProvider>();
 
 function buildProvider(key: string): MailProvider {
   switch (key) {
-    case "resend": {
-      const apiKey = process.env.RESEND_API_KEY;
-      if (!apiKey) throw new Error("RESEND_API_KEY is not set");
-      return new ResendMailProvider(apiKey);
+    case "plunk": {
+      const apiKey = process.env.PLUNK_API_KEY;
+      if (!apiKey) throw new Error("PLUNK_API_KEY is not set");
+      return new PlunkMailProvider(apiKey);
     }
     case "loops": {
       const apiKey = process.env.LOOPS_API_KEY;
@@ -60,7 +60,7 @@ export function getMailProvider(key?: string): MailProvider {
 export function listMailProviders(): { key: string; label: string; configured: boolean }[] {
   return [
     { key: "console", label: "Console (dev only — logs instead of sending)", configured: true },
-    { key: "resend", label: "Resend", configured: Boolean(process.env.RESEND_API_KEY) },
+    { key: "plunk", label: "Plunk", configured: Boolean(process.env.PLUNK_API_KEY) },
     { key: "loops", label: "Loops", configured: Boolean(process.env.LOOPS_API_KEY) },
     { key: "smtp", label: "SMTP (e.g. Zoho Mail)", configured: Boolean(process.env.SMTP_HOST) },
   ];

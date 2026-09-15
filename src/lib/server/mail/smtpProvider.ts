@@ -13,7 +13,7 @@ export interface SmtpConfig {
  * Generic SMTP provider — works with Zoho Mail's SMTP relay (smtp.zoho.com,
  * port 465/587), or any other SMTP account. No native audience management
  * or delivery webhooks, so this is best suited to low-volume sends or as a
- * fallback; for real campaign analytics prefer Resend or Loops.
+ * fallback; for real campaign analytics prefer Plunk or Loops.
  */
 export class SmtpMailProvider implements MailProvider {
   readonly key = "smtp";

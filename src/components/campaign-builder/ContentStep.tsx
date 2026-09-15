@@ -58,11 +58,11 @@ export default function ContentStep({ draft, onChange, readOnly }: ContentStepPr
           />
         </div>
         <p style={{ color: "var(--muted)", fontSize: 12 }}>
-          Resend fills these in per recipient at send time — triple braces, <code>contact.</code> prefix, optional{" "}
-          <code>|fallback</code>: <code>{"{{{contact.first_name|there}}}"}</code>,{" "}
-          <code>{"{{{contact.last_name}}}"}</code>, <code>{"{{{contact.email}}}"}</code>, or any custom contact
-          property. Add <code>{"{{{RESEND_UNSUBSCRIBE_URL}}}"}</code> somewhere in the body too — it only resolves
-          once an audience is attached in the next step.
+          Plunk fills these in per recipient at send time — double braces, optional{" "}
+          <code>{"?? 'fallback'"}</code>: <code>{"{{firstName ?? 'there'}}"}</code>,{" "}
+          <code>{"{{lastName}}"}</code>, <code>{"{{email}}"}</code>, or any custom contact property. Add{" "}
+          <code>{"{{unsubscribeUrl}}"}</code> somewhere in the body too — it only resolves once an audience is
+          attached in the next step.
         </p>
       </div>
       <div className="panel-card span-6">
