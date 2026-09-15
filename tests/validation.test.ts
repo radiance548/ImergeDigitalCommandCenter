@@ -96,7 +96,7 @@ describe("validation: createCampaignSchema", () => {
       fromEmail: "hello@example.com",
       templateId: "tmpl_1",
       audienceId: "aud_1",
-      provider: "resend",
+      provider: "plunk",
     });
     assert.ok(result.success);
   });

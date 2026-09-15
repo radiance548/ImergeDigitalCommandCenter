@@ -9,7 +9,7 @@ interface Params {
 
 /**
  * Single webhook endpoint for every mail provider, e.g.:
- *   https://your-domain.com/api/webhooks/mail/resend
+ *   https://your-domain.com/api/webhooks/mail/plunk
  *   https://your-domain.com/api/webhooks/mail/loops
  *
  * Register this URL in each provider's dashboard. The provider-specific

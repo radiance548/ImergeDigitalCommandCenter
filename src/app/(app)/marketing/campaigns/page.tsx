@@ -28,7 +28,7 @@ export default function CampaignsListPage() {
         fromName: "Imerge",
         // Left blank on purpose — a placeholder value here (e.g. the old
         // "hello@yourdomain.com") looks like a real, already-filled-in
-        // sending address, and Resend will only reject it as an unverified
+        // sending address, and Plunk will only reject it as an unverified
         // domain once you actually try to send. Leaving it empty forces a
         // real, verified domain to be entered in Content step before send.
         fromEmail: "",

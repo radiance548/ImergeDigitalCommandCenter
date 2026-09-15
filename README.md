@@ -4,7 +4,7 @@ A full rewrite of the original single-file HTML/vanilla-JS dashboard into a
 **Next.js 14 (App Router) + TypeScript + React** application — now with a
 real backend: **Supabase** (Postgres + Auth + Row Level Security) and a full
 **Campaign Builder** subsystem (content → template → audience →
-schedule/send → analytics) built directly on **Resend's Broadcast API**.
+schedule/send → analytics) built directly on **Plunk's Campaigns API**.
 
 The 7 original dashboards (Income, Marketing, Business Health, Client
 Profitability, Pipeline & Capacity, LTV/CAC, Settings) still run their
@@ -23,8 +23,9 @@ anymore, so a Supabase project is required even just to sign in.
 - **ORM**: Prisma
 - **Auth**: **Supabase Auth** — real sessions, no homemade password
   hashing/JWT code in this app anymore
-- **Campaign sending**: **Resend Broadcasts** — audiences, scheduling, and
-  send throttling are all handled by Resend itself, not by this app
+- **Campaign sending**: **Plunk Campaigns** — audiences (Plunk segments),
+  scheduling, and send throttling are all handled by Plunk itself, not by
+  this app
 - **Login rate limiting**: **Upstash Redis** (`@upstash/ratelimit`), with an
   in-memory fallback for local dev
 
@@ -34,7 +35,7 @@ anymore, so a Supabase project is required even just to sign in.
 npm test
 ```
 
-Runs a real (117-test) suite covering the logic that doesn't require a live
+Runs a real (133-test) suite covering the logic that doesn't require a live
 database connection:
 
 - **Formatting/date/aggregation helpers** (`src/lib/utils.ts`)
@@ -48,11 +49,14 @@ database connection:
   that `view` does *not* satisfy an `edit` requirement, the core invariant
   the whole permission system (both the app-code checks and the RLS
   policies) relies on
-- **Mail provider webhook parsing** for Resend and Loops, including a real
+- **Mail provider webhook parsing** for Plunk and Loops, including a real
   HMAC signature round-trip test for Loops that signs a payload exactly the
   way Loops' docs specify and confirms our code both accepts a valid one and
   rejects a tampered one
-- **`ResendBroadcastProvider`** — every method, against a mocked `fetch`
+- **`PlunkBroadcastProvider`** — every method, against a mocked `fetch`
+- **`contactFileParser`** — spreadsheet contact-import parsing (name/title
+  splitting, header matching, email dedup) against real `.xlsx` workbooks
+  built in-memory via `exceljs`
 - **Campaign analytics aggregation** — delivery/open/click/bounce rate math
 - **Login rate limiting** — window/reset behavior, IP+email key isolation
 - **`LocalStorageRepository`'s self-healing user reconciliation**
@@ -64,11 +68,12 @@ Uses a tiny custom harness (`tests/harness.ts`, no extra dependency) run via
 project, so isn't runnable in a fully offline/sandboxed environment): the
 actual `/api/*` route handlers end-to-end, whether the RLS policies in
 `prisma/rls.sql` actually block what they should when queried through a real
-Supabase session, and real sends through Resend. Before going to production,
+Supabase session, and real sends through Plunk. Before going to production,
 add integration tests against a real (e.g. Supabase branch/preview) project
 for at least: login → session cookie → an authenticated API call that RLS
 should allow; the same call with a user who should be denied by RLS;
-schedule → cancel-before-send; and a full campaign send in Resend's test mode.
+schedule → cancel-before-send; and a full campaign send against a real
+Plunk account.
 
 ## Getting started
 
@@ -103,8 +108,8 @@ you've signed in.
    Social Media & Ad Manager, etc. — see the Auth section) is then created
    the same self-service way, through **Settings → User Access &
    Permissions**, once you're signed in as Super Admin.
-5. Set `RESEND_API_KEY` in `.env.local` — the Campaign Builder is built
-   directly on Resend's Broadcast API, so this one is required, not optional
+5. Set `PLUNK_API_KEY` in `.env.local` — the Campaign Builder is built
+   directly on Plunk's Campaigns API, so this one is required, not optional
    (unlike the other `MAIL_PROVIDER` options, which are for possible future
    transactional-email use elsewhere — see "Mail providers" below).
 6. ```bash
@@ -117,12 +122,14 @@ you've signed in.
 
 - Add the same environment variables from `.env.example` in your Vercel
   project settings (Production + Preview as needed).
-- Register your webhook URL in the Resend dashboard:
-  `https://your-domain.com/api/webhooks/mail/resend` — this is how
-  delivered/opened/clicked/bounced events reach the Analytics step. Set
-  `RESEND_WEBHOOK_SECRET` to the signing secret Resend shows you when you
-  create it.
-- No cron job is needed — Resend's Broadcast API owns scheduling internally
+- No webhook registration needed for the Campaign Builder's analytics —
+  `campaignService.getAnalytics()` polls Plunk's `GET /campaigns/:id/stats`
+  directly instead. (Plunk has no dashboard-configurable webhook
+  subscription like Resend's — see `plunkProvider.ts`'s class comment if
+  you want delivery events for the separate, currently-unused
+  `MailProvider.send()` transactional path; that needs a manually-built
+  Plunk Workflow with a Webhook step, plus `PLUNK_WEBHOOK_SECRET`.)
+- No cron job is needed — Plunk's Campaigns API owns scheduling internally
   once you call schedule/send.
 
 ## Two data layers
@@ -205,8 +212,11 @@ reliable across multiple concurrent instances in production — see that
 file's docstring for exactly why).
 
 The `/api/webhooks/mail/[provider]` route intentionally stays outside this
-session system — it's authenticated by Resend's webhook signature instead,
-since it's called by Resend's servers, not a logged-in user.
+session system — it's authenticated by a provider-specific shared secret
+instead (for Plunk, a `Bearer` header — see `plunkProvider.ts`), since it's
+called by the provider's own servers, not a logged-in user. Not currently
+exercised in production: the Campaign Builder's analytics poll Plunk's
+stats endpoint instead of relying on this route (see below).
 
 **Please verify before relying on this in production**: the RLS
 integration above (`withRLS` + `FORCE ROW LEVEL SECURITY`) is a known,
@@ -215,42 +225,55 @@ against a live Supabase project in this environment — confirm it actually
 blocks what it should with a real session before depending on it as your
 only line of defense.
 
-## Campaign Builder: built on Resend Broadcasts
+## Campaign Builder: built on Plunk Campaigns
 
 1. **Content** — subject, preheader, from name/email, HTML body editor with
-   a live preview.
+   a live preview. Merge tags use Plunk's Liquid-based syntax —
+   `{{firstName ?? 'there'}}`, `{{lastName}}`, `{{email}}`. No need to add
+   an unsubscribe link yourself — every campaign is sent as Plunk's
+   `MARKETING` type, which automatically appends Plunk's own hosted
+   unsubscribe footer and skips already-unsubscribed contacts; the
+   built-in `{{unsubscribeUrl}}` merge tag is only for opting into a
+   custom-styled link instead of that default footer.
 2. **Template** — pick a starter template (seeded by `npm run db:seed`) or
    any saved template; selecting one replaces the body HTML.
 3. **Audience** — pick an existing audience or create one by pasting a list
-   of emails. `audienceService.create()` creates the audience on **Resend**
-   too (`Audience.externalId`) and every contact import
-   (`audienceService.importContacts`) syncs to Resend's own audience — Resend
-   is the actual source of truth Broadcasts send against, our tables are a
-   local mirror for the UI picker and permission-gated browsing.
+   of emails or uploading a spreadsheet. `audienceService.create()` creates
+   a matching **Plunk segment** too (`Audience.externalId`), and every
+   contact import (`audienceService.importContacts`) upserts each contact's
+   data into Plunk and adds them to that segment — Plunk is the actual
+   source of truth campaigns send against, our tables are a local mirror
+   for the UI picker and permission-gated browsing.
 4. **Schedule / Send** — `campaignService.schedule()`/`sendNow()` push the
-   campaign's current content to a Resend Broadcast
+   campaign's current content to a Plunk campaign
    (`EmailCampaign.externalBroadcastId`) and either call `sendBroadcast()`
-   immediately or with a future date. **Resend owns the actual
+   immediately or with a future date. **Plunk owns the actual
    queueing/throttling/scheduling from that point on** — this app has no
    dispatch queue or cron job of its own anymore.
-5. **Analytics** — `campaignService.recordWebhookEvent()` ingests Resend's
-   webhook events, correlating each one back to the right campaign via the
-   `broadcast_id` Resend includes in the payload (not an id we generated
-   ourselves, since Resend — not us — creates each individual send when it
-   fans a broadcast out). `CampaignRecipient` rows are created lazily, on
-   first event, rather than pre-populated before sending.
+5. **Analytics** — `campaignService.getAnalytics()` polls Plunk's
+   `GET /campaigns/:id/stats` directly for any campaign that's been sent
+   (live-recomputed counts, not eventually-consistent webhook ingestion —
+   see the method's doc comment). `engaged`/`engagedRate` (opened *and*
+   clicked by the same recipient) has no equivalent in Plunk's aggregate
+   stats and is always 0 for a sent campaign as a result. Draft campaigns
+   fall back to the local `CampaignRecipient`/`CampaignEvent` tables, which
+   `recordWebhookEvent()` can still populate if you separately wire up a
+   Plunk Workflow webhook (see `plunkProvider.ts`), but nothing does by
+   default.
 
 ### Mail providers (`src/lib/server/mail/`) — not used by the Campaign Builder
 
 This is a separate, more general abstraction (`MailProvider`) for sending a
-single email, with Resend/Loops/SMTP implementations and provider-agnostic
-webhook parsing. It predates the Broadcast rework and isn't wired into the
-Campaign Builder anymore (broadcasts are a fundamentally different,
+single email, with Plunk/Loops/SMTP implementations and provider-agnostic
+webhook parsing. It predates the Campaign rework and isn't wired into the
+Campaign Builder anymore (campaigns are a fundamentally different,
 audience-targeted primitive — see `broadcastProvider.ts`'s docstring for why
-that's a deliberately separate, Resend-specific interface rather than
+that's a deliberately separate, Plunk-specific interface rather than
 folded into this one). Kept available for any future transactional-email
 use case (e.g. a password-reset email, a health-dashboard alert) outside
-the Campaign Builder.
+the Campaign Builder — note `PlunkMailProvider.send()` has no per-message
+tracking id (Plunk's `/send` response doesn't return one), unlike the
+Resend implementation this replaced.
 
 ## Project structure (backend additions)
 
@@ -270,15 +293,15 @@ src/
     rateLimit.ts                   # login rate limiting: Upstash (real) + in-memory (fallback)
     validation.ts                   # zod schemas for every campaign builder request
     mail/
-      types.ts, consoleProvider.ts, resendProvider.ts, loopsProvider.ts, smtpProvider.ts, index.ts
+      types.ts, consoleProvider.ts, plunkProvider.ts, loopsProvider.ts, smtpProvider.ts, index.ts
                                 # general single-email MailProvider abstraction — see "Mail providers" above
-      broadcastProvider.ts       # BroadcastProvider interface — Resend-specific, Campaign Builder's actual send path
-      resendBroadcastProvider.ts  # the (only, currently) implementation
+      broadcastProvider.ts       # BroadcastProvider interface — Plunk-specific, Campaign Builder's actual send path
+      plunkBroadcastProvider.ts   # the (only, currently) implementation
       broadcastIndex.ts            # factory
     services/
-      campaignService.ts          # orchestrates all 5 campaign builder steps + Resend Broadcast sync
+      campaignService.ts          # orchestrates all 5 campaign builder steps + Plunk campaign sync
       templateService.ts           # template CRUD (step 2)
-      audienceService.ts            # audience/contacts CRUD + Resend sync (step 3)
+      audienceService.ts            # audience/contacts CRUD + Plunk sync (step 3)
     campaignAnalytics.ts       # pure aggregation math for step 5 — unit-tested
   app/api/
     auth/                        # login (Supabase proxy + rate limit), logout, me
@@ -385,11 +408,15 @@ directly.
   as of when this was written, but provider webhook formats do change over
   time — worth a sanity check against Loops' current docs before depending
   on it, if you ever do wire Loops back in for something.
-- **`Audience`/`AudienceContact` are a local mirror of Resend's own
-  Audience/Contact data**, kept for the UI picker and RLS-gated browsing.
-  If they ever drift (e.g. someone unsubscribes directly in Resend's
-  dashboard), there's no sync-back path from Resend to us yet — only
-  local-to-Resend, on import.
+- **`Audience`/`AudienceContact` are a local mirror of Plunk's own
+  segment/contact data**, kept for the UI picker and RLS-gated browsing.
+  If they ever drift (e.g. someone unsubscribes directly in Plunk's
+  dashboard), there's no sync-back path from Plunk to us yet — only
+  local-to-Plunk, on import.
+- **Migrated from Resend to Plunk** — existing `Audience` rows created
+  before the migration still carry a Resend-format `externalId`, which
+  Plunk's API won't recognize. Re-create (or re-sync) any pre-migration
+  audiences before importing contacts or sending a campaign against them.
 - **Split `AppData` into real API resources** remains future work if/when
   you move the 7 dashboards onto Postgres too — one blob (matching the
   original's single `localStorage` object) doesn't scale the way separate

@@ -16,18 +16,24 @@ export type Db = PrismaClient | Prisma.TransactionClient;
  * two separate top-level queries could land on different pooled
  * connections and silently not see each other's session state.
  *
- * `options` forwards to Prisma's own `$transaction` options (default
- * timeout is 5s) — most callers should leave this at the default, since a
- * long-held interactive transaction is exactly what it's there to catch
- * (see the comment on `create` in audienceService.ts). Only pass a longer
- * `timeout` for callers doing genuinely heavier single-statement DB work,
- * e.g. a large bulk upsert, where 5s isn't the query hanging — it's real
- * server-side work that legitimately takes longer.
+ * `options` forwards to Prisma's own `$transaction` options. Prisma's bare
+ * default (5s) turned out too tight even for a single trivial
+ * findUnique — measured directly, a cold-ish connection acquisition to
+ * the Supabase instance this app talks to can itself take several
+ * seconds independent of query complexity (the same class of latency that
+ * made the bulk-import path need an explicit longer timeout — see
+ * audienceService.importContacts), so every call gets a 10s floor by
+ * default rather than each call site discovering this one at a time. Pass
+ * a longer `timeout` for callers doing genuinely heavier single-statement
+ * DB work, e.g. a large bulk upsert, where the ceiling is real
+ * server-side work rather than connection latency.
  */
+const DEFAULT_TIMEOUT_MS = 10_000;
+
 export async function withRLS<T>(
   userId: string,
   fn: (tx: Db) => Promise<T>,
-  options?: { timeout?: number; maxWait?: number }
+  options: { timeout?: number; maxWait?: number } = {}
 ): Promise<T> {
   return prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     await tx.$executeRawUnsafe(
@@ -35,5 +41,5 @@ export async function withRLS<T>(
       JSON.stringify({ sub: userId, role: "authenticated" })
     );
     return fn(tx);
-  }, options);
+  }, { timeout: DEFAULT_TIMEOUT_MS, ...options });
 }

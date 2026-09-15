@@ -23,10 +23,10 @@ export const audienceService = {
   },
 
   /**
-   * Creates the audience locally AND on Resend, storing the Resend audience
+   * Creates the audience locally AND on Plunk, storing the Plunk audience
    * id for later contact/broadcast syncing.
    *
-   * The Resend call runs BEFORE the transaction opens, not inside it — an
+   * The Plunk call runs BEFORE the transaction opens, not inside it — an
    * interactive Prisma transaction has a hard timeout (see withRLS), and a
    * network round-trip has no business holding a DB connection open while
    * it waits on a third party.
@@ -37,8 +37,22 @@ export const audienceService = {
     return withRLS(userId, (tx) => tx.audience.create({ data: { ...input, externalId } }));
   },
 
-  remove(id: string, db: Db = prisma) {
-    return db.audience.delete({ where: { id } });
+  /**
+   * Same network-outside-transaction shape as `create` — see its comment.
+   * Deletes the Plunk-side audience first (best-effort — a Plunk outage
+   * shouldn't block removing our own row) so a deleted audience doesn't
+   * leave an orphaned, empty audience sitting in Plunk's dashboard.
+   */
+  async remove(id: string, userId: string) {
+    const audience = await withRLS(userId, (tx) => tx.audience.findUnique({ where: { id } }));
+    if (audience?.externalId) {
+      try {
+        await getBroadcastProvider().deleteAudience(audience.externalId);
+      } catch (error) {
+        console.error("[audienceService] Plunk audience deletion failed:", error);
+      }
+    }
+    return withRLS(userId, (tx) => tx.audience.delete({ where: { id } }));
   },
 
   /**
@@ -84,14 +98,23 @@ export const audienceService = {
       { timeout: 30_000, maxWait: 10_000 }
     );
 
-    // Push into Resend's own audience so Broadcasts sent against it reach
+    // Push into Plunk's own segment so campaigns sent against it reach
     // these contacts. If this fails, contacts are still stored locally —
     // the next successful sync (or a retry) will catch up.
+    //
+    // Deduped the same way as the local DB write above (not just for
+    // consistency): PlunkBroadcastProvider.upsertContacts fires one POST
+    // /contacts per contact concurrently (see its own comment), and two
+    // concurrent upserts for the same email raced each other in testing —
+    // Plunk returned a 500 for one of them, and which contact's data
+    // actually landed was non-deterministic. Deduping first guarantees at
+    // most one write per email, matching the deterministic
+    // "last-occurrence-wins" semantics the DB path already has.
     if (audience.externalId) {
       try {
         await getBroadcastProvider().upsertContacts(
           audience.externalId,
-          input.contacts.map((c) => ({
+          dedupeContactsByEmail(input.contacts).map((c) => ({
             email: c.email,
             firstName: c.firstName,
             lastName: c.lastName,
@@ -99,7 +122,7 @@ export const audienceService = {
           }))
         );
       } catch (error) {
-        console.error("[audienceService] Resend contact sync failed:", error);
+        console.error("[audienceService] Plunk contact sync failed:", error);
       }
     }
 

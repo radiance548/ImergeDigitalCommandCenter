@@ -61,7 +61,7 @@ export type MailWebhookEventType =
 export interface NormalizedWebhookEvent {
   type: MailWebhookEventType;
   providerMessageId?: string;
-  /** Present on broadcast sends (Resend Broadcasts) — correlates the event to an EmailCampaign via its externalBroadcastId. */
+  /** Present on broadcast sends (Plunk Campaigns) — correlates the event to an EmailCampaign via its externalBroadcastId. */
   broadcastId?: string;
   /** Present on audience/contact-level events (e.g. unsubscribes) that aren't scoped to any one campaign send. */
   audienceId?: string;
@@ -82,7 +82,7 @@ export interface MailProvider {
 
   /**
    * Optional: push/update contacts into the provider's own audience/list
-   * feature, for providers (Loops, Resend Audiences, Brevo) that manage
+   * feature, for providers (Loops, Plunk contacts, Brevo) that manage
    * lists natively. Providers that don't support this can no-op.
    */
   syncAudienceContacts?(audienceId: string, contacts: AudienceSyncContact[]): Promise<void>;

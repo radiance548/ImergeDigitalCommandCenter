@@ -14,10 +14,9 @@ const STARTER_TEMPLATES = [
     isSystem: true,
     html: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:24px;">
   <h1 style="color:#182230;">Announcement</h1>
-  <p style="color:#475467;line-height:1.6;">Hi {{{contact.first_name|there}}},</p>
+  <p style="color:#475467;line-height:1.6;">Hi {{firstName ?? 'there'}},</p>
   <p style="color:#475467;line-height:1.6;">Write your announcement here.</p>
   <a href="#" style="display:inline-block;background:#2563eb;color:#fff;padding:12px 20px;border-radius:10px;text-decoration:none;">Call to action</a>
-  <p style="color:#98a2b3;font-size:12px;margin-top:32px;">You're receiving this because you're subscribed to Imerge updates. <a href="{{{RESEND_UNSUBSCRIBE_URL}}}" style="color:#98a2b3;">Unsubscribe</a></p>
 </div>`,
   },
   {
@@ -26,12 +25,11 @@ const STARTER_TEMPLATES = [
     isSystem: true,
     html: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:24px;">
   <h1 style="color:#182230;">This Month at Imerge</h1>
-  <p style="color:#475467;line-height:1.6;">Hi {{{contact.first_name|there}}}, here's what's new:</p>
+  <p style="color:#475467;line-height:1.6;">Hi {{firstName ?? 'there'}}, here's what's new:</p>
   <h2 style="color:#182230;font-size:18px;">Update one</h2>
   <p style="color:#475467;line-height:1.6;">Details here.</p>
   <h2 style="color:#182230;font-size:18px;">Update two</h2>
   <p style="color:#475467;line-height:1.6;">Details here.</p>
-  <p style="color:#98a2b3;font-size:12px;margin-top:32px;">You're receiving this because you're subscribed to Imerge updates. <a href="{{{RESEND_UNSUBSCRIBE_URL}}}" style="color:#98a2b3;">Unsubscribe</a></p>
 </div>`,
   },
   {
@@ -39,10 +37,9 @@ const STARTER_TEMPLATES = [
     description: "Minimal, personal-feeling layout — good for founder-style updates.",
     isSystem: true,
     html: `<div style="font-family:Georgia,serif;max-width:560px;margin:0 auto;padding:24px;color:#182230;line-height:1.7;">
-  <p>Hi {{{contact.first_name|there}}},</p>
+  <p>Hi {{firstName ?? 'there'}},</p>
   <p>Write your message here, as if you were emailing one person.</p>
   <p>— The Imerge team</p>
-  <p style="color:#98a2b3;font-size:12px;margin-top:24px;"><a href="{{{RESEND_UNSUBSCRIBE_URL}}}" style="color:#98a2b3;">Unsubscribe</a></p>
 </div>`,
   },
 ];
