@@ -60,9 +60,10 @@ export default function ContentStep({ draft, onChange, readOnly }: ContentStepPr
         <p style={{ color: "var(--muted)", fontSize: 12 }}>
           Plunk fills these in per recipient at send time — double braces, optional{" "}
           <code>{"?? 'fallback'"}</code>: <code>{"{{firstName ?? 'there'}}"}</code>,{" "}
-          <code>{"{{lastName}}"}</code>, <code>{"{{email}}"}</code>, or any custom contact property. Add{" "}
-          <code>{"{{unsubscribeUrl}}"}</code> somewhere in the body too — it only resolves once an audience is
-          attached in the next step.
+          <code>{"{{lastName}}"}</code>, <code>{"{{email}}"}</code>, or any custom contact property. Plunk
+          automatically appends its own unsubscribe footer to every send, so you don&apos;t need to add one — only
+          use <code>{"{{unsubscribeUrl}}"}</code> yourself if you want a custom-styled link instead of the default
+          footer.
         </p>
       </div>
       <div className="panel-card span-6">

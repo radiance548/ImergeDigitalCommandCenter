@@ -229,8 +229,12 @@ only line of defense.
 
 1. **Content** — subject, preheader, from name/email, HTML body editor with
    a live preview. Merge tags use Plunk's Liquid-based syntax —
-   `{{firstName ?? 'there'}}`, `{{lastName}}`, `{{email}}`, and the
-   built-in `{{unsubscribeUrl}}`.
+   `{{firstName ?? 'there'}}`, `{{lastName}}`, `{{email}}`. No need to add
+   an unsubscribe link yourself — every campaign is sent as Plunk's
+   `MARKETING` type, which automatically appends Plunk's own hosted
+   unsubscribe footer and skips already-unsubscribed contacts; the
+   built-in `{{unsubscribeUrl}}` merge tag is only for opting into a
+   custom-styled link instead of that default footer.
 2. **Template** — pick a starter template (seeded by `npm run db:seed`) or
    any saved template; selecting one replaces the body HTML.
 3. **Audience** — pick an existing audience or create one by pasting a list

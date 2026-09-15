@@ -246,9 +246,10 @@ model EmailTemplate {
   description String?
   /// Raw HTML with Plunk's own Liquid-based merge-tag syntax, resolved by
   /// Plunk at send time — not by this app. Double braces, optional
-  /// "?? 'fallback'": {{firstName ?? 'there'}}. Also supports the
-  /// built-in {{unsubscribeUrl}} (only resolves once an audience is
-  /// attached to the campaign).
+  /// "?? 'fallback'": {{firstName ?? 'there'}}. No manual unsubscribe link
+  /// needed — every campaign is sent as Plunk's MARKETING type, which
+  /// auto-appends its own hosted unsubscribe footer; {{unsubscribeUrl}} is
+  /// only for a custom-styled link in place of that default footer.
   html        String
   thumbnailUrl String?
   isSystem    Boolean  @default(false) // seeded/starter templates vs user-created
